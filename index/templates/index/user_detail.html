@@ -1,0 +1,194 @@
+{% extends 'index/layout.html' %}
+{% load static %}
+{% block body %}
+<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+<link rel="stylesheet" href="{% static 'css/profile.css' %}">
+<div class="dashboard-container profile-dashboard">
+    <div class="profile-container">
+        <div class="profile-header">
+            <h1 class="section-title">Профиль пользователя</h1>
+            {% if request.user.is_superuser %}
+            <div class="profile-actions">
+                <button onclick="toggleEditProfile(event)" class="primary-button" id="edit-profile-btn">
+                    <i class="bi bi-pencil-square"></i> Управление
+                </button>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Карточка профиля -->
+        <div class="profile-card">
+            <div class="profile-image-container">
+                {% with profile_image=user.image_info.first %}
+                    {% if profile_image.image %}
+                        <img id="profileImage" src="{{ profile_image.image.url }}" alt="Фото профиля">
+                    {% else %}
+                        <img id="profileImage" src="{% static 'Icon\user.jpg' %}" alt="Фото профиля">
+                    {% endif %}
+                {% endwith %}
+                <div class="profile-status">
+                    {% if user.is_superuser %}
+                        <span class="status-label admin">Администратор</span>
+                    {% elif user.is_manager %}
+                        <span class="status-label manager">Руководитель</span>
+                    {% elif user.is_trainer %}
+                        <span class="status-label trainer">Тренер</span>
+                    {% else %}
+                        <span class="status-label user">Пользователь</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="profile-details">
+              <h2>{{ user }}</h2>
+                
+                <div class="profile-info-grid">
+                    <div class="profile-info-item">
+                        <i class="bi bi-envelope"></i>
+                        <div>
+                            <span class="info-label">Email:</span>
+                            <span class="info-value">{{ user.email }}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-info-item">
+                        <i class="bi bi-calendar-check"></i>
+                        <div>
+                            <span class="info-label">Дата регистрации:</span>
+                            <span class="info-value">{{ user.date_joined|date:"d.m.Y" }}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-info-item">
+                        <i class="bi bi-geo-alt"></i>
+                        <div>
+                            <span class="info-label">Регион:</span>
+                            <span class="info-value">{% if user_city.city %}{{ user.city_info.get_city_display }}{% else %}Не указано{% endif %}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-info-item">
+                        <i class="bi bi-hospital"></i>
+                        <div>
+                            <span class="info-label">Медцентр:</span>
+                            <span class="info-value">{% if user.med_info and user.med_info.med_center %}{{ user.med_info.med_center }}{% else %}Не указано{% endif %}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-info-item">
+                        <i class="bi bi-calendar-date"></i>
+                        <div>
+                            <span class="info-label">Дата рождения:</span>
+                            <span class="info-value">{% if user.dateofbirth %}{{ user.dateofbirth.date_of_birth|date:'d.m.Y' }} ({{ user.dateofbirth.age }}){% else %}Не указано{% endif %}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-info-item">
+                        <i class="bi bi-person"></i>
+                        <div>
+                            <span class="info-label">Пол:</span>
+                            <span class="info-value">
+                {% if user.usergender.gender == 'O' %}
+                Не указано
+                {% elif user.usergender.gender == 'M' %}
+                Мужской
+                {% elif user.usergender.gender == 'F' %}
+                Женский
+                {% else %}
+                Не указано
+                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if user.desc_info %}
+                <div class="profile-about">
+                    <h3><i class="bi bi-file-text"></i> О себе</h3>
+                    <p>{{ user.desc_info.desc }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Секция управления для администратора -->
+        {% if request.user.is_superuser %}
+        <div id="edit_profile_page" class="admin-controls-container" style="display: none">
+            <div class="admin-controls-header">
+                <h2>Управление пользователем</h2>
+                <button class="close-edit-btn" onclick="toggleEditProfile(event)">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+    </div>
+            
+            <div class="admin-controls-content">
+                <div class="admin-control-card">
+                    <h3><i class="bi bi-person-badge"></i> Изменить роль пользователя</h3>
+                    <form method="post" action="{% url 'update_user_status' user.id %}" class="admin-form">
+                        {% csrf_token %}
+                        <div class="form-field">
+                            <label for="roleSelect">Выберите роль:</label>
+                            <select class="dark-select" id="roleSelect" name="role">
+                                <option value="ADMIN" {% if current_role == 'ADMIN' %}selected{% endif %}>Администратор</option>
+                                <option value="TRAINER" {% if current_role == 'TRAINER' %}selected{% endif %}>Тренер</option>
+                                <option value="MANAGER" {% if current_role == 'MANAGER' %}selected{% endif %}>Руководитель</option>
+                                <option value="USER" {% if current_role == 'USER' %}selected{% endif %}>Пользователь</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="primary-button"><i class="bi bi-check-lg"></i> Применить</button>
+                    </form>
+                </div>
+                
+                <div class="admin-control-card">
+                    <h3><i class="bi bi-building"></i> Изменить медицинский центр</h3>
+                    <form method="post" action="{% url 'update_med_center' user.id %}" class="admin-form">
+                        {% csrf_token %}
+                        <div class="form-field">
+                        <label for="med_center">Выберите медцентр:</label>
+                            <select class="dark-select" name="med_center" id="med_center">
+                            {% regroup med_centers by get_region_display as region_list %}
+                            {% for region in region_list %}
+                                <optgroup label="{{ region.grouper }}">
+                                    {% for center in region.list %}
+                                        <option value="{{ center.med_center }}" 
+                                            {% if user.med_info.med_center == center.med_center %}selected{% endif %}>
+                                            {{ center.med_center }}
+                                        </option>
+                                    {% endfor %}
+                                </optgroup>
+                            {% endfor %}
+                        </select>
+                        </div>
+                        <button type="submit" class="primary-button"><i class="bi bi-check-lg"></i> Применить</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+    <script>
+    // Переключение между режимами просмотра и управления
+        function toggleEditProfile(event) {
+            if (event) {
+                event.stopPropagation();
+            }
+        var adminControlsPage = document.getElementById("edit_profile_page");
+        var editProfileBtn = document.getElementById("edit-profile-btn");
+        
+        if (adminControlsPage.style.display === 'none' || adminControlsPage.style.display === '') {
+            adminControlsPage.style.display = 'block';
+            setTimeout(function() {
+                adminControlsPage.classList.add('active');
+            }, 10);
+            editProfileBtn.innerHTML = '<i class="bi bi-eye"></i> Просмотр';
+        } else {
+            adminControlsPage.classList.remove('active');
+            setTimeout(function() {
+                adminControlsPage.style.display = 'none';
+            }, 300);
+            editProfileBtn.innerHTML = '<i class="bi bi-pencil-square"></i> Управление';
+        }
+        }
+    </script>
+{% endblock %}

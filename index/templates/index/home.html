@@ -1,0 +1,56 @@
+{% extends 'index/layout.html' %}
+{% load static %}
+
+{% block body %}
+<link rel="stylesheet" href="{% static 'css/home.css' %}">
+<div class="container-fluid main-container">
+    <div class="topnav">
+        <div class="nav-padding">
+            <span class="nav-ham" id="nav-ham" onclick="toggleSidebar()">&#9776;</span>
+            <a href="{% url 'index' %}" title="Формы">
+                <img src="{% static 'Icon/site-icon.png' %}" alt="Medical Forms Icon" class="navbar-icon form-icon">
+            </a>
+            <span class="nav-text" title="Формы"><a href="{% url 'index' %}" class="nav-link">Medical Forms</a></span>
+            <a href="{% url 'logout' %}">
+                <img src="{% static 'Icon/logout.png' %}" alt="Logout Icon" class="navbar-icon float-right logout-icon" title="Выйти">
+            </a>
+        </div>
+    </div>
+
+    <div class="container main-content" onclick="closeSidebar()">
+        <div class="active-forms-section">
+            <h2 class="section-title">Доступные формы</h2>
+            
+            {% if active_forms %}
+                <div class="forms-grid">
+                    {% for form in active_forms %}
+                        <div class="form-card">
+                            <div class="form-card-content" style="background-color: {% if form.background_color != '#202124' %}{{ form.background_color }}{% else %}#ffffff{% endif %}; color: {% if form.text_color != '#272124' %}{{ form.text_color }}{% else %}#000000{% endif %}">
+                                <h3 class="form-title">{{ form.title }}</h3>
+                                {% if form.description %}
+                                    <p class="form-description">{{ form.description|truncatechars:100 }}</p>
+                                {% endif %}
+                                <div class="form-meta">
+                                    <span class="form-date">
+                                        <i class="fas fa-calendar-alt"></i>
+                                        {{ form.createdAt|date:"d.m.Y" }}
+                                    </span>
+                                </div>
+                                <div class="form-actions">
+                                    <a href="{% url 'view_form' form.code %}" class="btn btn-primary">
+                                        Пройти форму
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="no-forms-message">
+                    <p>В данный момент нет доступных форм для заполнения.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %} 

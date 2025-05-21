@@ -1,0 +1,321 @@
+{% extends 'index/layout.html' %}
+{% load static %}
+{% block script %}
+<script src="{% static 'index/score_125.js' %}" defer></script>
+<script src="{% static 'lib/cookie.min.js' %}"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script>
+$(document).ready(function() {
+    $(".input-score").change(function() {
+        var choiceId = $(this).data('id');
+        var score = $(this).val();
+
+        $.ajax({
+            url: "{% url 'update_score' %}",  // Replace with the URL to your view
+            type: "POST",
+            data: {
+                'choice_id': choiceId,
+                'score': score,
+                'csrfmiddlewaretoken': '{{ csrf_token }}'
+            },
+            success: function(response) {
+                console.log("Score updated successfully");
+            },
+            error: function(response) {
+                console.log("Error updating score");
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+{% block body %}
+<div class="container-fluid">
+    {% with active_tab='score' %}
+        {% include 'index/includes/sidebar.html' %}
+    {% endwith %}
+    <div class="container main-body">
+        <span id="bg-color" style="display: none;">{{form.background_color}}</span>
+        <span id="text-color" style="display: none;">{{form.text_color}}</span>
+        <div class="margin-top-bottom box question-box" id="form-head">
+            <div class="form-title-box">
+                <h1 class="form-title edit-on-click txt-clr" {% if not request.user.is_superuser %}disabled{% endif %}>{{form.title}}</h1>
+            </div>
+            <p class="form-description edit-on-click textarea-adjust txt-clr" {% if not request.user.is_superuser %}disabled{% endif %}>{{form.description|linebreaksbr}}</p>
+            {% if form.collect_email %}
+            <div class="collect-email txt-clr">
+                <h3 class="question-title">Email адрес <span class="require-star">*</span></h3>
+                <input type="text" autoComplete="off" aria-label="Email адрес" disabled dir = "auto" class="require-email-edit txtColor"
+                placeholder = "Email адрес" {% if not request.user.is_superuser %}disabled{% endif %} />
+                <p class="collect-email-desc">Эта форма собирает адреса электронных почт.</p>
+            </div>
+            {% endif %}
+        </div>
+        {% for question in form.questions.all %}
+        <div class="margin-top-bottom box question-box question" data-id="{{question.id}}">
+            <h2 class="question-title-score">{{question.question}}</h2>
+            <div class="answer-key">
+                <p class="answer-key-title">Правильный ответ:</p>
+                {% if question.question_type == "short" %}
+                    <input type="text" class="short-answer" data-id="{{question.id}}" data-question-type = "{{question.question_type}}" answer-key
+                    value="{{question.answer_key}}"  {% if not request.user.is_superuser %}disabled{% endif %}>
+                {% elif question.question_type == "paragraph" %}
+                    <textarea class="long-answer textarea-adjust" data-question-type = "{{question.question_type}}" answer-key
+                    data-id="{{question.id}}"  {% if not request.user.is_superuser %}disabled{% endif %}>{{question.answer_key}}
+                    </textarea>
+                {% elif question.question_type == "range slider" %}
+                    <input type="range" id="slider" min="0" max="{{ question.max_value }}" value="{{question.answer_key}}" class="slider" data-question-type = "{{question.question_type}}" answer-key
+                    data-id="{{question.id}}"  {% if not request.user.is_superuser %}disabled{% endif %}>
+                    <input type="number" id="numberInput" min="0" max="{{ question.max_value }}" value="{{question.answer_key}}" class="edit-choice" data-question-type = "{{question.question_type}}" answer-key
+                    data-id="{{question.id}}"  {% if not request.user.is_superuser %}disabled{% endif %}>
+                    <label>из {{ question.max_value }}</label>
+                {% elif question.question_type == "multiple choice" %}
+                    {% for i in question.choices.all %}
+                    <div class="form-group">
+                        <input type="radio" name="{{question.id}}-answer" id="choice-{{i.id}}" data-id="{{question.id}}" value="{{i.id}}" answer-key
+                        data-question_type = "{{question.question_type}}" {% if i.is_answer %} checked {% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label for="choice-{{i.id}}">{{i.choice}}</label>
+                        <input type="number" data-id="{{ i.id }}" id="score-{{ i.id }}" class="input-score" value="{{ i.scores }}" {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label for="score-{{ i.id }}">Баллов</label>
+                    </div>
+                    {% endfor %}
+                {% elif question.question_type == "checkbox" %}
+                    {% for i in question.choices.all %}
+                    <div class="form-group">
+                        <input type="checkbox" name="{{question.id}}-answer" id="choice-{{i.id}}" data-id="{{question.id}}" value="{{i.id}}"
+                        data-question_type = "{{question.question_type}}" answer-key {% if i.is_answer %} checked {% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label for="choice-{{i.id}}">{{i.choice}}</label>
+                        <input type="number" data-id="{{ i.id }}" id="score-{{ i.id }}" class="input-score" value="{{ i.scores }}" {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label for="score-{{ i.id }}">Баллов</label>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+            <div class="feedback">
+                <p class="feedback-title">Комментарий:</p>
+                {% if question.feedback != None %}
+                <textarea class="long-answer textarea-adjust" data-id="{{question.id}}" name="feedback">{{question.feedback}}</textarea>
+                {% else %}
+                <textarea class="long-answer textarea-adjust" data-id="{{question.id}}" name="feedback"></textarea>
+                {% endif %}
+            </div>
+            <div class="question-score-num">
+                <input type="number" data-id="{{question.id}}" id="score" class="input-score" value="{{question.score}}" {% if not request.user.is_superuser %}disabled{% endif %}>
+                <label for="score" title="Баллы за правильный вариант">Баллов*</label>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="modal" id="customize-theme">
+        <div class="modal-content">
+            <span class="modal-close-btn" id="close-customize-theme">&times;</span>
+            <h1 class="modal-title">Настройки цвета</h1>
+            <h3 class="modal-subtitle">Цвет фона:  <input type="color"  value = "{{form.background_color}}" list="bgColors" class="form-control-color" id="input-bg-color" {% if not request.user.is_superuser %}disabled{% endif %} /></h3>
+            <datalist id="bgColors">
+                <option value="#aed581"></option>
+                <option value="#80deea"></option>
+                <option value="#b2ebf2"></option>
+                <option value="#e1bee7"></option>
+                <option value="#d1c4e9"></option>
+                <option value="#f0f4c3"></option>
+                <option value="#f5f5f5"></option>
+                <option value="#cfd8dc"></option>
+                <option value="#e6ee9c"></option>
+                <option value="#202124"></option>
+            </datalist>
+            <h3 class="modal-subtitle">Цвет текста:  <input type="color"  value = {{form.text_color}} list="textColors" class="form-control-color" id="input-text-color" {% if not request.user.is_superuser %}disabled{% endif %} /></h3>
+            <datalist id="textColors">
+                <option value="#880000"></option>
+                <option value="#512da8"></option>
+                <option value="#1a237e"></option>
+                <option value="#005cbf"></option>
+                <option value="#0288d1"></option>
+                <option value="#00695c"></option>
+                <option value="#424242"></option>
+                <option value="#321932"></option>
+                <option value="#121212"></option>
+            </datalist>
+        </div>
+    </div>
+    <div class="modal" id="setting">
+        <div class="modal-content txt-clr">
+            <form id="setting-form">
+                <span class="modal-close-btn" id="close-setting">&times;</span>
+                <h1 class = "modal-title">Настройки</h1>
+                <h4 class="setting-preview-form small-screen"><a href="{% url 'view_form' form.code %}">Превью формы</a></h4>
+                <div class="modal-division">
+                    <div class="form-group">
+                        <h3 class="modal-subtitle">Общее</h3>
+                        <input type="checkbox" id="collect_email"{% if form.collect_email %} checked {% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label for="collect_email" class="setting-form-label">Сбор E-mail адресов.</label>
+                    </div>
+                    <div class="form-group">
+                        <input type="checkbox" id="is_quiz" {% if form.is_quiz %} checked {% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label for="is_quiz" class="setting-form-label">Преобразовать в тест</label>
+                    </div>
+                    <div class="form-group">
+                        <input type="checkbox" id="authenticated_responder" {% if form.authenticated_responder %} checked {% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label for="authenticated_responder" class="setting-form-label">Только авторизованные пользователи.</label>
+                    </div>
+                    <div class="form-group">
+                        <input type="checkbox" id="limit_ip" {% if form.limit_ip %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label for="limit_ip" class="setting-form-label">Возможность ответить только один раз анонимным пользователям.</label>
+                    </div>
+                    <div class="form-group">
+                        <input type="checkbox" id="submit_limit" {% if form.submit_limit %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label for="submit_limit" class="setting-form-label">Возможность ответить только один раз авторизованным пользователям.</label>
+                    </div>
+                    <div class="form-group">
+                        <input type="checkbox" id="is_single_form" {% if form.is_single_form %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label for="is_single_form" class="setting-form-label">Доступ в телеграм-боте</label>
+                    </div>
+                    <div class="form-group">
+                        <input type="checkbox" id="is_active" {% if form.is_active %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label for="is_active" class="setting-form-label">Учитывать в общей оценке</label>
+                    </div>
+                    <script>
+                        document.getElementById('limit_ip').addEventListener('change', function() {
+                            const limitIpValue = this.checked;
+                        
+                            fetch("{% url 'edit_setting' form.code %}", {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': '{{ csrf_token }}',
+                                },
+                                body: JSON.stringify({ limit_ip: limitIpValue })
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.message === "Success") {
+                                    console.log("Setting updated successfully");
+                                } else {
+                                    console.log("Failed to update setting");
+                                }
+                            })
+                            .catch((error) => {
+                                console.error('Error:', error);
+                            });
+                        });
+                    </script>
+                    <script>
+                        document.getElementById('submit_limit').addEventListener('change', function() {
+                            const submitLimitValue = this.checked;
+                        
+                            fetch("{% url 'edit_setting' form.code %}", {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': '{{ csrf_token }}',
+                                },
+                                body: JSON.stringify({ submit_limit: submitLimitValue })
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.message === "Success") {
+                                    console.log("Setting updated successfully");
+                                } else {
+                                    console.log("Failed to update setting");
+                                }
+                            })
+                            .catch((error) => {
+                                console.error('Error:', error);
+                            });
+                        });
+                    </script>
+                    <script>
+                        document.getElementById('is_single_form').addEventListener('change', function() {
+                            const isSingleFormValue = this.checked;
+                        
+                            fetch("{% url 'edit_setting' form.code %}", {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': '{{ csrf_token }}',
+                                },
+                                body: JSON.stringify({ is_single_form: isSingleFormValue })
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.message === "Success") {
+                                    console.log("Setting updated successfully");
+                                } else {
+                                    console.log("Failed to update setting");
+                                }
+                            })
+                            .catch((error) => {
+                                console.error('Error:', error);
+                            });
+                        });
+                    </script>
+                </div>
+                <div class="modal-division">
+                    <div class="form-group">
+                        <h3 class="modal-subtitle">Опрошенные могут:</h3>
+                        <input type="checkbox" id="edit_after_submit" {% if form.edit_after_submit %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label for="edit_after_submit" class="setting-form-label">Вносить изменения после отправки</label>
+                    </div>
+                    <div class="form-group">
+                        <input type="checkbox" id="allow_view_score" {% if form.allow_view_score %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label for="allow_view_score" class="setting-form-label">Просмотреть свои оценки</label>
+                    </div>
+                </div>
+                <div class="modal-division">
+                    <div class="form-group">
+                        <h3 class="modal-subtitle">Сообщение после отправки:</h3>
+                        <textarea rows="1" class="confirmation-msg-input edit-on-click textarea-adjust" spellcheck="false"
+                         id="comfirmation_message" {% if not request.user.is_superuser %}disabled{% endif %}>{{form.confirmation_message}}</textarea>
+                    </div>
+                </div>
+                <div class="form-group">
+                  <input type="submit" value="Сохранить" class="form-control btn btn-save-setting">
+                </div>
+            </form>
+            <form id="delete-form" class="modal-division">
+                    <input type="submit" value="Удалить" class="form-control btn delete-form-btn">
+            </form>
+        </div>
+    </div>
+    <div class="modal" id="send-form">
+        <div class="modal-content">
+            <span class="modal-close-btn" id="close-send-form">&times;</span>
+            <h1 class="modal-title">Поделиться формой</h1>
+            <div class="modal-division">
+                <h4 class="modal-subtitle">Ссылка:</h4>
+                <input type="url" class="form-control" id="copy-url" value="http://{{request.get_host}}/form/{{form.code}}/viewform">
+            </div>
+            <button class="btn btn-submit" copy-btn>Копировать</button>
+            <div class="modal-division">
+                <h4 class="modal-subtitle">Код:</h4>
+                <input type="text" class="form-control" id="copy-code-url" value="{{form.code}}">
+            </div>
+            <button class="btn btn-submit" copy-code-btn>Копировать</button>
+        </div>
+    </div>
+</div>
+<script>
+    var sliders = document.querySelectorAll('.question-box input[type="range"]');
+
+    sliders.forEach(function(slider) {
+        slider.addEventListener('input', function() {
+            var numberInput = slider.closest('.question-box').querySelector('input[type="number"]');
+            numberInput.value = slider.value;
+        });
+
+        var numberInput = slider.closest('.question-box').querySelector('input[type="number"]');
+        numberInput.addEventListener('input', function() {
+            var value = numberInput.value;
+            var max = parseInt(slider.max);
+            var min = parseInt(slider.min);
+
+            if (value < min) {
+                value = min;
+            } else if (value > max) {
+                value = max;
+            }
+
+            slider.value = value;
+        });
+    });
+</script>
+{% endblock %}

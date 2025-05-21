@@ -1,0 +1,134 @@
+{% extends 'index/layout.html' %}
+{% load static %}
+{% block script %}
+<script src="{% static 'index/index.js' %}" defer></script>
+<script src="{% static 'lib/cookie.min.js' %}" defer></script>
+{% endblock %}
+{% block body %}
+<div class="dashboard-container">
+    <div class="dashboard-content">
+        <div class="dashboard-header">
+            <div class="header-search">
+                <input type="text" id="user-search-input" placeholder="Введите текст для поиска по списку...">
+                <button type="button" onclick="searchUsers()" class="primary-button"><i class="bi bi-search"></i> Поиск</button>
+            </div>
+        </div>
+        
+        <div class="delete-options-panel" id="delete-options" style="display: none;">
+            <div class="delete-nav">
+                <button type="submit" form="delete-users-form" class="primary-button"><i class="bi bi-trash"></i> Удалить выделенное</button>
+                <button onclick="selectAllUsers()" type="button" class="primary-button"><i class="bi bi-check-all"></i> Выделить все</button>
+                <button onclick="reselectAllUsers()" type="button" class="primary-button"><i class="bi bi-x-lg"></i> Убрать выделение</button>
+            </div>
+        </div>
+        
+        <form id="delete-users-form" action="{% url 'delete_users' %}" method="post">
+            {% csrf_token %}
+            <div class="forms-grid">
+                {% for user in users %}
+                <a class="form-card form-list-link" href="{% url 'user_detail' user.pk %}">
+                    <div class="form-checkbox-container">
+                        <input type="checkbox" name="selected_users[]" class="form-checkbox" value="{{ user.id }}">
+                    </div>
+                    <div class="form-card-content">
+                        <div class="form-card-header">
+                            <h3 class="form-card-title">{% if user.username|length > 30 %}{{ user.username|slice:":30" }}...{% else %}{{ user.username }}{% endif %}</h3>
+                            <span class="form-card-date">{{ user.email }}</span>
+                        </div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </form>
+    </div>
+    <div class="question-options">
+        <img src="{% static 'Icon/delete.png' %}" alt="Delete Icon" class="navbar-icon float-right delete-icon form-option-icon" title="Delete" onclick="showDeleteOptions()">
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var deleteOptions = document.getElementById('delete-options');
+        var checkboxContainers = document.querySelectorAll('.form-checkbox-container');
+        var deleteMode = false;
+
+        window.showDeleteOptions = function () {
+            deleteMode = !deleteMode;
+            
+            // Переключение отображения панели удаления с анимацией
+            if (deleteMode) {
+                deleteOptions.style.display = 'flex';
+                setTimeout(function() {
+                    deleteOptions.classList.add('active');
+                }, 10);
+            } else {
+                deleteOptions.classList.remove('active');
+                setTimeout(function() {
+                    deleteOptions.style.display = 'none';
+                }, 400); // Время должно совпадать с длительностью transition в CSS
+            }
+            
+            // Переключение отображения чекбоксов
+            checkboxContainers.forEach(function (container) {
+                if (deleteMode) {
+                    container.classList.add('visible');
+                } else {
+                    // Добавляем класс для анимации исчезновения
+                    container.style.animation = 'fadeOut 0.3s ease forwards';
+                    setTimeout(function() {
+                        container.classList.remove('visible');
+                        container.style.animation = '';
+                    }, 300);
+                }
+            });
+        };
+
+        window.selectAllUsers = function () {
+            var checkboxes = document.querySelectorAll('.form-checkbox');
+            checkboxes.forEach(function (checkbox) {
+                checkbox.checked = true;
+            });
+        };
+
+        window.reselectAllUsers = function () {
+            var checkboxes = document.querySelectorAll('.form-checkbox');
+            checkboxes.forEach(function (checkbox) {
+                checkbox.checked = false;
+            });
+        };
+
+        var userLinks = document.querySelectorAll('.form-list-link');
+        userLinks.forEach(function (userLink) {
+            userLink.addEventListener('click', function (event) {
+                if (deleteMode) {
+                    event.preventDefault();
+                    var checkbox = userLink.querySelector('.form-checkbox');
+                    checkbox.checked = !checkbox.checked;
+                }
+            });
+        });
+
+        window.searchUsers = function () {
+            var searchInput = document.getElementById('user-search-input').value.toLowerCase();
+            var userLinks = document.querySelectorAll('.form-list-link');
+
+            userLinks.forEach(function (userLink) {
+                var username = userLink.querySelector('.form-card-title').textContent.toLowerCase();
+                
+                if (username.includes(searchInput)) {
+                    userLink.style.display = 'block';
+                } else {
+                    userLink.style.display = 'none';
+                }
+            });
+        };
+        
+        // Добавление возможности поиска при нажатии Enter
+        document.getElementById('user-search-input').addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+                searchUsers();
+            }
+        });
+    });
+</script>
+{% endblock %}

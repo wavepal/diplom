@@ -1,0 +1,33 @@
+{% extends "index/layout.html" %}
+{% load static %}
+
+{% block body %}
+<link rel="stylesheet" href="{% static 'css/medical_centers.css' %}">
+<div class="container-fluid">
+    <div class="container">
+        <div class="mc-form-container">
+            <h2 class="mc-form-title">{% if group %}Редактировать{% else %}Создать{% endif %} группу медцентров</h2>
+            
+            <form method="post">
+                {% csrf_token %}
+                <div class="mc-form-group">
+                    <label for="name">Название группы:</label>
+                    <input type="text" name="name" id="name" class="mc-form-control" 
+                           value="{{ group.name }}" required placeholder="Введите название группы">
+                </div>
+                <div class="mc-form-group">
+                    <label for="description">Описание (необязательно):</label>
+                    <textarea name="description" id="description" class="mc-form-control" 
+                              placeholder="Введите описание группы">{{ group.description }}</textarea>
+                </div>
+                <div class="mc-form-actions">
+                    <button type="submit" class="mc-submit-button">
+                        {% if group %}Сохранить{% else %}Создать{% endif %}
+                    </button>
+                    <a href="{% url 'manage_medical_centers' %}" class="mc-cancel-button">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %} 

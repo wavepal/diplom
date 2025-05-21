@@ -1,0 +1,117 @@
+{% extends 'index/layout.html' %}
+{% load static %}
+{% block title %}Ответ - {{form.title}}{% endblock %}
+{% block body %}
+<div class="container-fluid">
+    {% with active_tab='responses' %}
+        {% include 'index/includes/sidebar.html' %}
+    {% endwith %}
+    <div class="container main-body">
+        <div class="margin-top-bottom box question-box">
+            <h1 class="form-title">Ответ на форму</h1>
+            <div class="response-info">
+                <p><strong>Дата ответа:</strong> {{ response.createdAt|date:"d.m.Y H:i" }}</p>
+                {% if response.responder_username %}
+                    <p><strong>Пользователь:</strong> {{ response.responder_username }}</p>
+                {% endif %}
+                {% if response.responder_email %}
+                    <p><strong>Email:</strong> {{ response.responder_email }}</p>
+                {% endif %}
+                {% if response.responder_med %}
+                    <p><strong>Медцентр:</strong> {{ response.responder_med }}</p>
+                {% endif %}
+            </div>
+            
+            {% for answer in answers %}
+            <div class="margin-top-bottom box answer-box">
+                <h3 class="question-title">{{ answer.question.question }}</h3>
+                {% if answer.question.question_type == "short" or answer.question.question_type == "paragraph" %}
+                    <p class="answer-text">{{ answer.answer }}</p>
+                {% elif answer.question.question_type == "multiple choice" %}
+                    <p class="answer-text">{{ answer.selected_choice.choice }}</p>
+                    {% if form.is_quiz %}
+                        <p class="score-info">Баллы: {{ answer.selected_choice.scores }}</p>
+                    {% endif %}
+                {% elif answer.question.question_type == "checkbox" %}
+                    <ul class="answer-list">
+                    {% for choice in answer.selected_choices.all %}
+                        <li>{{ choice.choice }}
+                            {% if form.is_quiz %}
+                                <span class="score-info">({{ choice.scores }} баллов)</span>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% elif answer.question.question_type == "range slider" %}
+                    <p class="answer-text">{{ answer.answer }} из {{ answer.question.max_value }}</p>
+                {% endif %}
+                
+                {% if answer.is_skipped %}
+                    <p class="skip-info">Ответ не учитывается в статистике</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+            
+            {% if form.is_quiz %}
+            <div class="total-score-box">
+                <h2>Итоговый результат</h2>
+                <p class="total-score">{{ total_score }} / {{ max_possible_score }} баллов</p>
+                <p class="score-percentage">({{ score_percentage }}%)</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.response-info {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+}
+.answer-box {
+    padding: 15px;
+    margin-bottom: 15px;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+}
+.answer-text {
+    margin: 10px 0;
+    font-size: 16px;
+}
+.answer-list {
+    list-style-type: none;
+    padding-left: 0;
+}
+.answer-list li {
+    margin: 5px 0;
+}
+.score-info {
+    color: #28a745;
+    font-weight: bold;
+}
+.skip-info {
+    color: #FF3030;
+    font-style: italic;
+    margin-top: 10px;
+}
+.total-score-box {
+    margin-top: 30px;
+    text-align: center;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+}
+.total-score {
+    font-size: 24px;
+    font-weight: bold;
+    color: #28a745;
+    margin: 10px 0;
+}
+.score-percentage {
+    font-size: 18px;
+    color: #6c757d;
+}
+</style>
+{% endblock %}

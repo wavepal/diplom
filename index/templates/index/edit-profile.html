@@ -1,0 +1,338 @@
+{% extends 'index/layout.html' %}
+{% load static %}
+{% block body %}
+<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+<link rel="stylesheet" href="{% static 'css/profile.css' %}">
+<div class="dashboard-container profile-dashboard">
+    <div class="profile-container">
+        <div class="profile-header">
+            <h1 class="section-title">Профиль пользователя</h1>
+            <div class="profile-actions">
+                <button onclick="toggleEditProfile(event)" class="primary-button" id="edit-profile-btn">
+                    <i class="bi bi-pencil-square"></i> Редактировать
+                </button>
+            </div>
+        </div>
+
+        <!-- Карточка профиля -->
+        <div class="profile-card">
+            <div class="profile-image-container">
+                {% with profile_image=user.image_info.first %}
+                    {% if profile_image and profile_image.image %}
+                        <img id="profileImage" src="{{ profile_image.image.url }}" alt="Фото профиля">
+                    {% else %}
+                        <img id="profileImage" src="{% static 'Icon\user.jpg' %}" alt="Фото профиля">
+                    {% endif %}
+                {% endwith %}
+                <div class="profile-status">
+                    {% if user.is_superuser %}
+                        <span class="status-label admin">Администратор</span>
+                    {% elif user.is_manager %}
+                        <span class="status-label manager">Руководитель</span>
+                    {% elif user.is_trainer %}
+                        <span class="status-label trainer">Тренер</span>
+                    {% else %}
+                        <span class="status-label user">Пользователь</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="profile-details">
+                <h2>{{ request.user }}</h2>
+                
+                <div class="profile-info-grid">
+                    <div class="profile-info-item">
+                        <i class="bi bi-envelope"></i>
+                        <div>
+                            <span class="info-label">Email:</span>
+                            <span class="info-value">{{ request.user.email }}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-info-item">
+                        <i class="bi bi-calendar-check"></i>
+                        <div>
+                            <span class="info-label">Дата регистрации:</span>
+                            <span class="info-value">{{ request.user.date_joined|date:"d.m.Y" }}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-info-item">
+                        <i class="bi bi-geo-alt"></i>
+                        <div>
+                            <span class="info-label">Регион:</span>
+                            <span class="info-value">{% if user_city.city %}{{ user.city_info.get_city_display }}{% else %}Не указано{% endif %}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-info-item">
+                        <i class="bi bi-hospital"></i>
+                        <div>
+                            <span class="info-label">Медцентр:</span>
+                            <span class="info-value">{% if user.med_info and user.med_info.med_center %}{{ user.med_info.med_center }}{% else %}Не указано{% endif %}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-info-item">
+                        <i class="bi bi-calendar-date"></i>
+                        <div>
+                            <span class="info-label">Дата рождения:</span>
+                            <span class="info-value">{% if user.dateofbirth %}{{ user.dateofbirth.date_of_birth|date:'d.m.Y' }} ({{ user.dateofbirth.age }}){% else %}Не указано{% endif %}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-info-item">
+                        <i class="bi bi-person"></i>
+                        <div>
+                            <span class="info-label">Пол:</span>
+                            <span class="info-value">
+                                {% if user.usergender.gender == 'O' %}
+                                Не указано
+                                {% elif user.usergender.gender == 'M' %}
+                                Мужской
+                                {% elif user.usergender.gender == 'F' %}
+                                Женский
+                                {% else %}
+                                Не указано
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if request.user.desc_info %}
+                <div class="profile-about">
+                    <h3><i class="bi bi-file-text"></i> О себе</h3>
+                    <p>{{ request.user.desc_info.desc }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Секция редактирования профиля -->
+        <div id="edit_profile_page" class="edit-profile-container" style="display: none">
+            <div class="edit-profile-header">
+                <h2>Редактирование профиля</h2>
+                <button class="close-edit-btn" onclick="toggleEditProfile(event)">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            
+            <div class="edit-profile-tabs">
+                <button class="tab-btn active" data-tab="personal">Личные данные</button>
+                <button class="tab-btn" data-tab="photo">Фотография</button>
+                <button class="tab-btn" data-tab="about">О себе</button>
+            </div>
+            
+            <div class="edit-profile-content">
+                <!-- Вкладка Личные данные -->
+                <div class="tab-content personal active">
+                    <div class="form-group">
+                        <form method="post" action="{% url 'change_username' %}" class="edit-form">
+                            {% csrf_token %}
+                            <h3>Имя пользователя</h3>
+                            <div class="form-animate">
+                                <input type="text" name="username" id="id_username" value="{{ request.user.username }}" required class="input-animate">
+                                <label for="id_username" class="input-onFocus">Ваш новый ник</label>
+                            </div>
+                            <button type="submit" class="primary-button"><i class="bi bi-check-lg"></i> Сохранить</button>
+                        </form>
+                    </div>
+                    
+                    <div class="form-group">
+                        <form method="post" action="{% url 'change_email' %}" class="edit-form">
+                            {% csrf_token %}
+                            <h3>Электронная почта</h3>
+                            <div class="form-animate">
+                                <input type="email" name="email" id="id_email" value="{{ request.user.email }}" required class="input-animate">
+                                <label for="id_email" class="input-onFocus">Ваша новая почта</label>
+                            </div>
+                            <button type="submit" class="primary-button"><i class="bi bi-check-lg"></i> Сохранить</button>
+                        </form>
+                    </div>
+                    
+                    <div class="form-group">
+                        <form method="post" action="{% url 'change_gender' %}" class="edit-form">
+                            {% csrf_token %}
+                            <h3>Пол</h3>
+                            <select name="gender" id="gender" class="filter-select">
+                                <option value="O" {% if user.usergender.gender == 'O' %}selected{% endif %}>Не указано</option>
+                                <option value="M" {% if user.usergender.gender == 'M' %}selected{% endif %}>Мужской</option>
+                                <option value="F" {% if user.usergender.gender == 'F' %}selected{% endif %}>Женский</option>
+                            </select>
+                            <button type="submit" class="primary-button"><i class="bi bi-check-lg"></i> Сохранить</button>
+                        </form>
+                    </div>
+                    
+                    <div class="form-group">
+                        <form method="post" action="{% url 'change_date_of_birth' %}" class="edit-form">
+                            {% csrf_token %}
+                            <h3>Дата рождения</h3>
+                            <input type="date" id="date_of_birth" name="date_of_birth" value="{{ user.dateofbirth.date_of_birth|date:'Y-m-d' }}" class="filter-date">
+                            <button type="submit" class="primary-button"><i class="bi bi-check-lg"></i> Сохранить</button>
+                        </form>
+                    </div>
+                    
+                    <div class="form-group">
+                        <form method="post" action="{% url 'edit_profile' %}" class="edit-form">
+                            {% csrf_token %}
+                            <h3>Город</h3>
+                            <select id="City" name="City" class="filter-select">
+                                <option value="" {% if not user_city.city %}selected{% endif %}>Выбрать город</option>
+                                {% for value, display in city_choices %}
+                                    <option value="{{ value }}" {% if user_city.city == value %}selected{% endif %}>{{ display }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="primary-button"><i class="bi bi-check-lg"></i> Сохранить</button>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Вкладка Фотография -->
+                <div class="tab-content photo">
+                    <div class="form-group">
+                        <h3><i class="bi bi-camera"></i> Фотография профиля</h3>
+                        <div class="photo-editor">
+                            <div class="photo-preview-section">
+                                <div class="profile-image-preview">
+                                    <img id="imagePreview" src="{% with profile_image=user.image_info.first %}{% if profile_image and profile_image.image %}{{ profile_image.image.url }}{% else %}{% static 'Icon\user.jpg' %}{% endif %}{% endwith %}" alt="Предпросмотр">
+                                </div>
+                                {% if user.is_authenticated %}
+                                    {% with profile_image=user.image_info.first %}
+                                        {% if profile_image %}
+                                            <button type="button" onclick="document.getElementById('delete-photo-form').submit();" class="photo-delete-btn">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        {% endif %}
+                                    {% endwith %}
+                                {% endif %}
+                            </div>
+                            <div class="photo-actions">
+                                <form method="post" action="{% url 'change_profile_image' %}" enctype="multipart/form-data" class="edit-form">
+                                    {% csrf_token %}
+                                    <label for="imageFile" class="photo-upload-btn">
+                                        <i class="bi bi-upload"></i> Выбрать фото
+                                    </label>
+                                    <input type="file" id="imageFile" name="imageFile" accept="image/*" style="display: none;" onchange="previewImage(this)">
+                                    <span id="fileLabel">Файл не выбран</span>
+                                    <button class="primary-button" type="submit"><i class="bi bi-check-lg"></i> Сохранить</button>
+                                </form>
+                                {% if user.is_authenticated %}
+                                    {% with profile_image=user.image_info.first %}
+                                        {% if profile_image %}
+                                            <form id="delete-photo-form" method="post" action="{% url 'delete_profile_image' %}" style="display: none;">
+                                                {% csrf_token %}
+                                            </form>
+                                        {% endif %}
+                                    {% endwith %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Вкладка О себе -->
+                <div class="tab-content about">
+                    <div class="form-group">
+                        <form method="post" action="{% url 'change_desc' %}" class="edit-form">
+                            {% csrf_token %}
+                            <h3><i class="bi bi-file-earmark-text"></i> О себе</h3>
+                            <div class="about-textarea-container">
+                                <div class="about-textarea-wrapper">
+                                    <textarea name="desc" id="desc" rows="6" class="about-textarea">{{ request.user.desc_info.desc }}</textarea>
+                                    <div class="about-textarea-decoration"></div>
+                                </div>
+                                <div class="about-textarea-info">
+                                    <span class="about-hint"><i class="bi bi-info-circle"></i> Расскажите о себе, своем опыте и интересах</span>
+                                    <span class="char-counter" id="char-counter">0/500</span>
+                                </div>
+                            </div>
+                            <button type="submit" class="primary-button about-submit"><i class="bi bi-check-lg"></i> Сохранить</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Переключение между режимами просмотра и редактирования
+    function toggleEditProfile(event) {
+        if (event) {
+            event.stopPropagation();
+        }
+        var editProfilePage = document.getElementById("edit_profile_page");
+        var editProfileBtn = document.getElementById("edit-profile-btn");
+        
+        if (editProfilePage.style.display === 'none' || editProfilePage.style.display === '') {
+            editProfilePage.style.display = 'block';
+            setTimeout(function() {
+                editProfilePage.classList.add('active');
+            }, 10);
+            editProfileBtn.innerHTML = '<i class="bi bi-eye"></i> Просмотр';
+        } else {
+            editProfilePage.classList.remove('active');
+            setTimeout(function() {
+                editProfilePage.style.display = 'none';
+            }, 300);
+            editProfileBtn.innerHTML = '<i class="bi bi-pencil-square"></i> Редактировать';
+        }
+    }
+    
+    // Переключение между вкладками в режиме редактирования
+    document.addEventListener('DOMContentLoaded', function() {
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                // Убираем активный класс со всех кнопок и контентов
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Добавляем активный класс нажатой кнопке
+                this.classList.add('active');
+                
+                // Показываем соответствующий контент
+                const tabName = this.getAttribute('data-tab');
+                document.querySelector(`.tab-content.${tabName}`).classList.add('active');
+            });
+        });
+        
+        // Добавляю счетчик символов для поля описания
+        const descTextarea = document.getElementById('desc');
+        const charCounter = document.getElementById('char-counter');
+        
+        if (descTextarea && charCounter) {
+            function updateCharCount() {
+                const currentLength = descTextarea.value.length;
+                charCounter.textContent = `${currentLength}/500`;
+                
+                if (currentLength > 400) {
+                    charCounter.classList.add('near-limit');
+                } else {
+                    charCounter.classList.remove('near-limit');
+                }
+            }
+            
+            updateCharCount();
+            descTextarea.addEventListener('input', updateCharCount);
+        }
+    });
+    
+    // Предпросмотр изображения
+    function previewImage(input) {
+        const fileLabel = document.getElementById('fileLabel');
+        fileLabel.textContent = input.files[0] ? input.files[0].name : 'Файл не выбран';
+        
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                document.getElementById('imagePreview').src = e.target.result;
+            }
+            
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+</script>
+{% endblock %}

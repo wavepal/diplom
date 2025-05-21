@@ -1,0 +1,63 @@
+{% extends 'index/layout.html' %}
+{% block title %}
+Поделиться - {{form.title}}
+{% endblock %}
+{% load static %}
+{% block script %}
+<script src="{% static 'index/form_12.js' %}"></script>
+<script src="{% static 'lib/cookie.min.js' %}"></script>
+{% endblock %}
+{% block body %}
+<div class="container-fluid">
+    <div class="container main-body">
+        {% with active_tab='share' %}
+            {% include 'index/includes/sidebar.html' %}
+        {% endwith %}
+        <div class="modal-content">
+            <h1 class="modal-title txt-clr">Поделиться формой</h1>
+            <div class="modal-division">
+                <h4 class="modal-subtitle txt-clr">Ссылка:</h4>
+                <input type="url" class="form-control" id="copy-url" value="http://{{request.get_host}}/form/{{form.code}}/viewform">
+            </div>
+            <button class="btn btn-submit" copy-btn>Копировать</button>
+            <div class="modal-division">
+                <h4 class="modal-subtitle txt-clr">Код:</h4>
+                <input type="text" class="form-control" id="copy-code-url" value="{{form.code}}">
+            </div>
+            <button class="btn btn-submit" copy-code-btn>Копировать</button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll("[copy-btn]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            var url = document.getElementById("copy-url");
+            navigator.clipboard.writeText(url.value).then(() => {
+                btn.textContent = "Скопировано!";
+                setTimeout(() => {
+                    btn.textContent = "Копировать";
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        });
+    });
+
+    document.querySelectorAll("[copy-code-btn]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            var url = document.getElementById("copy-code-url");
+            navigator.clipboard.writeText(url.value).then(() => {
+                btn.textContent = "Скопировано!";
+                setTimeout(() => {
+                    btn.textContent = "Копировать";
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

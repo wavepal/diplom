@@ -1,0 +1,49 @@
+{% load static %}
+<div class="form-sidebar">
+    <div class="sidebar-buttons">
+        <button class="sidebar-btn {% if active_tab == 'questions' %}active{% endif %}" 
+                onclick="window.location.href='{% url 'edit_form' form.code %}'" 
+                title="Вопросы">
+            <i class="bi bi-question-circle"></i>
+            <span>Вопросы</span>
+        </button>
+        {% if form.is_quiz %}
+        <button class="sidebar-btn {% if active_tab == 'score' %}active{% endif %}" 
+                onclick="window.location.href='{% url 'score' form.code %}'" 
+                title="Оценка">
+            <i class="bi bi-star"></i>
+            <span>Оценка</span>
+        </button>
+        {% endif %}
+        <button class="sidebar-btn {% if active_tab == 'responses' %}active{% endif %}" 
+                onclick="window.location.href='{% url 'responses' form.code %}'" 
+                title="Ответы">
+            <i class="bi bi-chat-left-text"></i>
+            <span>Ответы</span>
+        </button>
+        <button class="sidebar-btn {% if active_tab == 'colors' %}active{% endif %}" 
+                onclick="window.location.href='{% url 'form_colors' form.code %}'" 
+                title="Настройки цвета">
+            <i class="bi bi-palette"></i>
+            <span>Цвета</span>
+        </button>
+        <button class="sidebar-btn {% if active_tab == 'preview' %}active{% endif %}" 
+                onclick="window.location.href='{% url 'view_form' form.code %}'" 
+                title="Просмотр">
+            <i class="bi bi-eye"></i>
+            <span>Просмотр</span>
+        </button>
+        <button class="sidebar-btn {% if active_tab == 'share' %}active{% endif %}" 
+                onclick="window.location.href='{% url 'form_share' form.code %}'" 
+                title="Поделиться">
+            <i class="bi bi-share"></i>
+            <span>Поделиться</span>
+        </button>
+        <button class="sidebar-btn {% if active_tab == 'settings' %}active{% endif %}" 
+                onclick="window.location.href='{% url 'form_settings' form.code %}'" 
+                title="Настройки">
+            <i class="bi bi-gear"></i>
+            <span>Настройки</span>
+        </button>
+    </div>
+</div> 

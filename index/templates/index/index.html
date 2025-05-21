@@ -1,0 +1,108 @@
+{% extends 'index/layout.html' %}
+{% load static %}
+{% block script %}
+<script src="{% static 'index/indexx.js' %}" defer></script>
+<script src="{% static 'lib/cookie.min.js' %}" defer></script>
+{% endblock %}
+{% load static %}
+{% block body %}
+<div class="dashboard-container">
+    <div class="dashboard-content" onclick="closeSidebar()">
+        {% if user.is_staff %}
+        <div class="forms-dashboard">
+            <div class="dashboard-header">
+                <h2 class="section-title">Ваши формы</h2>
+                <button class="primary-button" onclick="window.location.href='/form/list'">
+                    <i class="bi bi-list"></i> Список форм
+                </button>
+            </div>
+            
+            <div class="forms-grid">
+                {% if forms %}
+                    {% for i in forms|dictsortreversed:"updatedAt"|slice:":9" %}
+                        <a {% if user.is_manager %}href="{% url 'responses' i.code %}"{% else %}href="{% url 'edit_form' i.code %}"{% endif %} class="form-card">
+                            <div class="form-card-content">
+                                <div class="form-card-header">
+                                    <h3 class="form-card-title">{% if i.title|length > 30 %}{{ i.title|slice:":30" }}...{% else %}{{ i.title }}{% endif %}</h3>
+                                    <span class="form-card-date">{{ i.updatedAt|default:i.createdAt }}</span>
+                                </div>
+                                <!-- <div class="form-card-footer">
+                                    <span class="form-card-status">
+                                        <i class="fas fa-circle"></i> Активна
+                                    </span>
+                                </div> -->
+                            </div>
+                        </a>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <i class="bi bi-clipboard-list empty-icon"></i>
+                        <p class="empty-message">У вас нет созданных форм</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if user.is_admin %}
+    <div class="create-dashboard">
+        <div class="dashboard-header">
+            <h2 class="section-title">Создать форму</h2>
+        </div>
+        
+        <div class="templates-grid">
+            <div class="template-card" id="create-blank-form">
+                <div class="template-icon">
+                    <img src="{% static 'Icon/create-form.png' %}" alt="Пустая форма">
+                </div>
+                <div class="template-info">
+                    <h3 class="form-card-title">Пустая форма</h3>
+                    <p>Форма без заданных полей и цветов</p>
+                </div>
+            </div>
+
+            <div class="template-card big-screen" id="create-contact-form">
+                <div class="template-icon">
+                    <img src="{% static 'Template/contact.png' %}" alt="Контактная информация">
+                </div>
+                <div class="template-info">
+                    <h3 class="form-card-title">Контактная информация</h3>
+                    <p>Форма для сбора информации</p>
+                </div>
+            </div>
+
+            <div class="template-card big-screen" id="create-customer-feedback">
+                <div class="template-icon">
+                    <img src="{% static 'Template/customer-feedback.png' %}" alt="Форма обратной связи">
+                </div>
+                <div class="template-info">
+                    <h3 class="form-card-title">Форма обратной связи</h3>
+                    <p>Форма для отправки сообщений</p>
+                </div>
+            </div>
+
+            <div class="template-card big-screen" id="create-event-registration">
+                <div class="template-icon">
+                    <img src="{% static 'Template/event.png' %}" alt="Регистрация на мероприятие">
+                </div>
+                <div class="template-info">
+                    <h3 class="form-card-title">Регистрация на мероприятие</h3>
+                    <p>Форма для регистрации</p>
+                </div>
+            </div>
+
+            <div class="template-card big-screen" id="create-social-survey">
+                <div class="template-icon">
+                    <img src="{% static 'Template/survey.png' %}" alt="Оценка медцентра">
+                </div>
+                <div class="template-info">
+                    <h3 class="form-card-title">Оценка медцентра</h3>
+                    <p>Форма для проведения опроса</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

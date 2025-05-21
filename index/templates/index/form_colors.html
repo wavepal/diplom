@@ -1,0 +1,97 @@
+{% extends 'index/layout.html' %}
+{% block title %}
+Настройки цвета - {{form.title}}
+{% endblock %}
+{% load static %}
+{% block script %}
+<script src="{% static 'index/form_12.js' %}"></script>
+<script src="{% static 'lib/cookie.min.js' %}"></script>
+{% endblock %}
+{% block body %}
+<link rel="stylesheet" href="{% static 'css/colors.css' %}">
+<div class="container-fluid">
+    <div class="container main-body">
+        {% with active_tab='colors' %}
+            {% include 'index/includes/sidebar.html' %}
+        {% endwith %}
+        <span id="bg-color" style="display: none;">{{form.background_color}}</span>
+        <span id="text-color" style="display: none;">{{form.text_color}}</span>
+        
+        <div class="settings-card">
+            <h1 class="settings-title txt-clr">Настройки цвета</h1>
+            
+            <div class="color-section">
+                <div class="color-option">
+                    <label class="color-label txt-clr" for="input-bg-color">Цвет фона:</label>
+                    <input type="color" value="{{form.background_color}}" list="bgColors" class="color-picker" id="input-bg-color" {% if not request.user.is_superuser %}disabled{% endif %}/>
+                </div>
+                <datalist id="bgColors">
+                    <option value="#aed581"></option>
+                    <option value="#80deea"></option>
+                    <option value="#b2ebf2"></option>
+                    <option value="#e1bee7"></option>
+                    <option value="#d1c4e9"></option>
+                    <option value="#f0f4c3"></option>
+                    <option value="#f5f5f5"></option>
+                    <option value="#cfd8dc"></option>
+                    <option value="#e6ee9c"></option>
+                    <option value="#0D0D11"></option>
+                </datalist>
+            </div>
+            
+            <div class="color-section">
+                <div class="color-option">
+                    <label class="color-label txt-clr" for="input-text-color">Цвет текста:</label>
+                    <input type="color" value="{{form.text_color}}" list="textColors" class="color-picker" id="input-text-color" {% if not request.user.is_superuser %}disabled{% endif %}/>
+                </div>
+                <datalist id="textColors">
+                    <option value="#880000"></option>
+                    <option value="#512da8"></option>
+                    <option value="#1a237e"></option>
+                    <option value="#005cbf"></option>
+                    <option value="#0288d1"></option>
+                    <option value="#00695c"></option>
+                    <option value="#424242"></option>
+                    <option value="#321932"></option>
+                    <option value="#121212"></option>
+                </datalist>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const csrf = Cookies.get('csrftoken');
+    document.body.style.backgroundColor = document.querySelector("#bg-color").innerHTML;
+    document.body.style.color = document.querySelector("#text-color").innerHTML;
+    document.querySelectorAll(".txt-clr").forEach(element => {
+        element.style.color = document.querySelector("#text-color").innerHTML;
+    });
+
+    document.querySelector("#input-bg-color").addEventListener("input", function(){
+        document.body.style.backgroundColor = this.value;
+        fetch('edit_background_color', {
+            method: "POST",
+            headers: {'X-CSRFToken': csrf},
+            body: JSON.stringify({
+                "bgColor": this.value
+            })
+        });
+    });
+
+    document.querySelector("#input-text-color").addEventListener("input", function(){
+        document.querySelectorAll(".txt-clr").forEach(element => {
+            element.style.color = this.value;
+        });
+        fetch('edit_text_color', {
+            method: "POST",
+            headers: {'X-CSRFToken': csrf},
+            body: JSON.stringify({
+                "textColor": this.value
+            })
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "index/layout.html" %}
+{% load static %}
+
+{% block body %}
+<link rel="stylesheet" href="{% static 'css/medical_centers.css' %}">
+<div class="container-fluid">
+    <div class="container">
+        <div class="mc-list">
+            <a href="{% url 'manage_medical_centers' %}" class="mc-back-button">
+                <i class="bi bi-arrow-left"></i> Назад к списку
+            </a>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <p class="mc-page-title">{{ group.name }}</p>
+                    {% if group.description %}
+                        <p class="mc-group-description">{{ group.description }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="mc-centers-grid">
+                {% if med_centers %}
+                    {% for center in med_centers %}
+                        <div class="mc-center-box" onclick="editCenter({{ center.id }})">
+                            <div class="mc-box-content">
+                                <div class="mc-box-header">
+                                    <h5 class="mc-title-text">{{ center.med_center }}</h5>
+                                    <div class="mc-actions" onclick="event.stopPropagation();">
+                                        <button class="mc-action-btn" onclick="editCenter({{ center.id }})" title="Редактировать">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="mc-action-btn" onclick="deleteCenter({{ center.id }})" title="Удалить">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="mc-box-info">
+                                    <div class="mc-info-item">
+                                        <i class="bi bi-geo-alt-fill"></i>
+                                        <span>{{ center.get_region_display }}</span>
+                                    </div>
+                                    <div class="mc-info-item">
+                                        <i class="bi bi-building-fill"></i>
+                                        <span>{{ center.address|default:"-" }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+                
+                <!-- Карточка для добавления нового медцентра -->
+                <a href="{% url 'add_medical_center' %}?group={{ group.id }}" class="mc-add-card">
+                    <i class="bi bi-plus-circle"></i>
+                    <p class="mc-add-card-text">Добавить медицинский центр</p>
+                </a>
+            </div>
+
+            {% if not med_centers %}
+                <p class="mc-empty-message">В этой группе нет медицинских центров.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function editCenter(centerId) {
+    window.location.href = `/edit-medical-center/${centerId}/?group={{ group.id }}`;
+}
+
+function deleteCenter(centerId) {
+    event.stopPropagation();
+    if (confirm('Вы уверены, что хотите удалить этот медицинский центр?')) {
+        const formData = new FormData();
+        formData.append('action', 'delete');
+        formData.append('center_id', centerId);
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.ok ? window.location.reload() : Promise.reject('Ошибка при удалении'))
+        .catch(error => alert(error));
+    }
+}
+
+function closeSidebar() {
+    document.getElementById("mySidenav").style.width = "0";
+}
+</script>
+{% endblock %} 

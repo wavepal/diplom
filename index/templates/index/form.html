@@ -1,0 +1,334 @@
+{% extends 'index/layout.html' %}
+{% block title %}
+{{form.title}} - Medical Forms
+{% endblock %}
+{% load static %}
+{% block script %}
+<script src="{% static 'index/form_12.js' %}"></script>
+<script src="{% static 'lib/cookie.min.js' %}"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+{% endblock %}
+{% block body %}
+<div class="container-fluid">
+    {% with active_tab='questions' %}
+        {% include 'index/includes/sidebar.html' %}
+    {% endwith %}
+    <div class="container main-body">
+        <span id="bg-color" style="display: none;">{{form.background_color}}</span>
+        <span id="text-color" style="display: none;">{{form.text_color}}</span>
+        <div class="margin-top-bottom box question-box" id="form-head">
+            <div class="form-title-box">
+                <input type="text" class="form-title edit-on-click input-form-title txt-clr" value="{{form.title}}" {% if not request.user.is_superuser %}disabled{% endif %}>
+            </div>
+            <textarea class="form-description edit-on-click textarea-adjust txt-clr" rows="1" placeholder="Описание формы" spellCheck = "false"
+            id="input-form-description" {% if not request.user.is_superuser %}disabled{% endif %}>{{form.description}}</textarea>
+            {% if form.collect_email %}
+            <div class="collect-email txt-clr">
+                <h3 class="question-title">Email адрес <span class="require-star">*</span></h3>
+                <input type="text" autocomplete="off" aria-label="Email адрес" disabled dir = "auto" class="require-email-edit txtColor"
+                placeholder = "Email адрес" />
+                <p class="collect-email-desc">Эта форма собирает адреса электронных почт.</p>
+            </div>
+            {% endif %}
+        </div>
+        <div id="questions-container">
+            {% for question in form.questions.all %}
+            <div class="margin-top-bottom box question-box question" data-id="{{question.id}}" data-order="{{question.order}}">
+                <div class="drag-handle">⋮⋮</div>
+                <input type="text" data-id="{{question.id}}" class="question-title edit-on-click input-question" value="{{question.question}}" {% if not request.user.is_superuser %}disabled{% endif %}>
+                <select class="question-type-select input-question-type" data-id="{{question.id}}" data-origin_type = "{{question.question_type}}" {% if not request.user.is_superuser %}disabled{% endif %}>
+                    <option value="title" {% if question.question_type == "title" %}selected{% endif %}>Заголовок</option>
+                    <option value="short" {% if question.question_type == "short" %}selected{% endif %}>Строка</option>
+                    <option value="paragraph" {% if question.question_type == "paragraph" %}selected{% endif %}>Абзац</option>
+                    <option value="multiple choice" {% if question.question_type == "multiple choice" %}selected{% endif %}>Один вариант</option>
+                    <option value="checkbox" {% if question.question_type == "checkbox" %}selected{% endif %}>Мультивыбор</option>
+                    <option value="range slider" {% if question.question_type == "range slider" %}selected{% endif %}>Ползунок</option>
+                </select>
+                {% if question.question_type == "multiple choice" %}
+                <div class="choices" data-id="{{question.id}}">
+                    {% for choice in question.choices.all %}
+                        <div class="choice">
+                            <input type="radio" id="{{choice.id}}" disabled>
+                            <label for="{{choice.id}}">
+                                <input type="text" value="{{choice.choice}}" class="edit-choice" data-id="{{choice.id}}" {% if not request.user.is_superuser %}disabled{% endif %}>
+                            </label>
+                            <span class="remove-option" title = "Удалить" data-id="{{choice.id}}">&times;</span>
+                        </div>
+                    {% endfor %}
+                    <div class="choice">
+                        <input type="radio" id="{{choice.id}}" disabled>
+                        <label for = "add-choice" class="add-option" id="add-option" data-question="{{question.id}}" data-type = "{{question.question_type}}"><input type="text" value="Добавить вариант" class="add-option edit-choice" data-id="{{choice.id}}" {% if not request.user.is_superuser %}disabled{% endif %}></label>
+                    </div>
+                </div>
+                {% elif question.question_type == "checkbox" %}
+                <div class="choices" data-id="{{question.id}}">
+                    {% for choice in question.choices.all %}
+                        <div class="choice">
+                            <input type="checkbox" id="{{choice.id}}" disabled>
+                            <label for="{{choice.id}}">
+                                <input type="text" data-id="{{choice.id}}" class="edit-choice" value="{{choice.choice}}" {% if not request.user.is_superuser %}disabled{% endif %}>
+                            </label>
+                            <span class="remove-option" title="Удалить" data-id="{{choice.id}}">&times;</span>
+                        </div>
+                    {% endfor %}
+                    <div class="choice">
+                        <input type="checkbox" id="{{choice.id}}" disabled>
+                        <label for = "add-choice" class="add-option" id="add-option" data-question="{{question.id}}" data-type = "{{question.question_type}}"><input type="text" value="Добавить вариант" class="add-option edit-choice" data-id="{{choice.id}}" {% if not request.user.is_superuser %}disabled{% endif %}></label>
+                    </div>
+                </div>
+                {% elif question.question_type == "short" %}
+                <div class="answers" data-id="{{question.id}}">
+                    <input type ="text" class="short-answer" disabled placeholder="Строчный текст" {% if not request.user.is_superuser %}disabled{% endif %}/>
+                </div>
+                {% elif question.question_type == "paragraph" %}
+                <div class="answers" data-id="{{question.id}}">
+                    <textarea class="long-answer" disabled placeholder="Абзац" {% if not request.user.is_superuser %}disabled{% endif %}></textarea>
+                </div>
+                {% elif question.question_type == "range slider" %}
+                <div class="answers" data-id="{{ question.id }}">
+                    <input type="range" min="0" max="100" value="50" class="slider" disabled>
+                    <label for="input-max-value">
+                        <input type="number" id="input-max-value" value="{{ question.max_value }}" class="edit-choice" data-id="{{ question.id }}" placeholder="Макс. число" {% if not request.user.is_superuser %}disabled{% endif %}>
+                    </label>
+                </div>
+                {% endif %}
+                <div class="choice-option">
+                    <div>
+                        <label class="toggle-switch" for="required-{{question.id}}">
+                            <input type="checkbox" class="required-checkbox" id="required-{{question.id}}" data-id="{{question.id}}" {% if question.required %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <label for="required-{{question.id}}" class="required">Обязателен*</label>
+                    </div>
+                    <div class="float-right">
+                        <a alt="Copy question icon" class="question-option-icon copy-question" title="Копировать вопрос"
+                           data-id="{{ question.id }}">
+                            <i class="bi bi-copy copy-question question-icon"></i>
+                        </a>
+                        <a alt="Delete question icon" class="question-option-icon delete-question" title="Удалить поле"
+                           data-id="{{ question.id }}">
+                            <i class="bi bi-trash-fill delete-question question-icon"></i>
+                        </a>
+                    </div>
+                    <div>
+                        <label class="toggle-switch" for="isskip-{{question.id}}">
+                            <input type="checkbox" class="isskip-checkbox" id="isskip-{{question.id}}" data-id="{{question.id}}" {% if question.is_skip %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <label for="isskip-{{question.id}}" class="required">Необязателен для статистики</label>
+                    </div>
+                    {% if question.question_type == "multiple choice" %}
+                    <div>
+                        <label class="toggle-switch" for="list-{{question.id}}">
+                            <input type="checkbox" class="islist-checkbox" id="list-{{question.id}}" data-id="{{question.id}}" {% if question.is_list %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <label for="list-{{question.id}}" class="is_list">Список</label>
+                    </div>
+                    {% endif %}
+
+                    {% if question.question_type == "short" or question.question_type == "paragraph" %}
+                    <div>
+                        <label class="toggle-switch" for="isnegative-{{question.id}}">
+                            <input type="checkbox" class="isnegative-checkbox" id="isnegative-{{question.id}}" 
+                                   data-id="{{question.id}}" {% if question.is_negative %}checked{% endif %} 
+                                   {% if not request.user.is_superuser %}disabled{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <label for="isnegative-{{question.id}}" class="required">Негативный отзыв</label>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="drag-handle">⋮⋮</div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="question-options">
+            <img src = "{% static 'Icon/add-button.png' %}" class="form-option-icon" title = "Добавить вопрос" alt = "Add question icon" id="add-question" />
+        </div>
+    </div>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const addQuestionButton = document.getElementById('add-question');
+        addQuestionButton.addEventListener('click', function() {
+            // Сохраняем текущую позицию прокрутки
+            const currentScroll = document.querySelector('.container').scrollTop;
+            localStorage.setItem('scrollPosition', currentScroll);
+            
+            // После перезагрузки прокрчиваем к новому вопросу
+            setTimeout(function() {
+                const container = document.querySelector('.container');
+                container.scrollTo({
+                    top: container.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }, 100);
+        });
+    });
+
+        const inputMaxValues = document.querySelectorAll('input[id="input-max-value"]');
+        
+        inputMaxValues.forEach(inputMaxValue => {
+            const slider = inputMaxValue.closest('.answers').querySelector('.slider');
+
+            inputMaxValue.addEventListener('input', function() {
+
+                const questionId = this.getAttribute('data-id');
+                const newValue = this.value;
+
+                fetch(`/update_max_value/${questionId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken'),
+                    },
+                    body: JSON.stringify({ max_value: newValue }),
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Max value updated successfully:', data);
+                })
+                .catch(error => {
+                    console.error('Error updating max value:', error);
+                });
+            });
+        });
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.startsWith(name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const questionTypeSelects = document.querySelectorAll('.question-type-select');
+        const saveSettingButton = document.querySelector('.btn-save-setting');
+
+        questionTypeSelects.forEach(select => {
+            select.addEventListener('change', async function() {
+                const questionId = this.dataset.id;
+                const newType = this.value;
+                const originalType = this.dataset.origin_type;
+                
+                if (newType !== originalType) {
+                    // Проверяем наличие ответов перед показом предупреждения
+                    try {
+                        const response = await fetch(`/check_question_has_answers/${questionId}/`);
+                        const data = await response.json();
+                        
+                        if (data.has_answers) {
+                            if (!confirm('При изменении типа вопроса все существующие ответы на этот вопрос будут удалены. Продолжить?')) {
+                                this.value = originalType;
+                                return;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error checking answers:', error);
+                    }
+                }
+            });
+        });
+    });
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const questionsContainer = document.getElementById('questions-container');
+    
+    if (questionsContainer) {
+        new Sortable(questionsContainer, {
+            animation: 150,
+            handle: '.drag-handle',
+            ghostClass: 'sortable-ghost',
+            onEnd: function(evt) {
+                const questions = document.querySelectorAll('.question');
+                const questionOrders = Array.from(questions).map((question, index) => ({
+                    id: question.dataset.id,
+                    order: index
+                }));
+                
+                console.log('Sending new order:', questionOrders);
+                
+                const pathParts = window.location.pathname.split('/');
+                const formCode = pathParts[pathParts.indexOf('form') + 1];
+                
+                fetch(`/update_question_order/${formCode}/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        questionOrders: questionOrders
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.message === "Success") {
+                        console.log("Order updated successfully");
+                    } else {
+                        console.error("Failed to update order:", data);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating order:', error);
+                });
+            }
+        });
+    }
+});
+
+
+</script>
+<style>
+.question-box {
+    position: relative;
+    cursor: default;
+    margin-left: 30px;
+    padding-left: 10px;
+}
+
+.drag-handle {
+    position: absolute;
+    left: -30px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: move;
+    padding: 10px;
+    color: #666;
+    font-size: 20px;
+    user-select: none;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.drag-handle:hover {
+    opacity: 1;
+}
+
+.sortable-ghost {
+    opacity: 0.5;
+    background: #c8ebfb;
+}
+</style>
+{% endblock %}

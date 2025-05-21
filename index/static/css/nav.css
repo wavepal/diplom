@@ -1,0 +1,68 @@
+.topnav {
+    display: inline-block;
+    vertical-align: top;
+    width: 100vw;
+    top: 0;
+    padding: 10px 10px 10px 0px;
+}
+
+@media screen and (max-width: 768px) {
+    .topnav {
+        padding: 0px 0px 0px 0px;
+    }
+}
+
+.right-nav-items {
+    float: right;
+}
+
+.nav-padding {
+    padding-inline: 160px;
+}
+
+.navbar-icon {
+    float: left;    
+}
+
+.nav-text {
+    float: left;
+    position: relative;
+    vertical-align: middle;
+    margin-top: 0.75rem;
+    font-family: "Product Sans";
+    color: #FFFFFF;
+    padding-left: 1rem;
+}
+
+.nav-link {
+    color: #FFFFFF;
+    text-decoration: none;
+    font-family: "Roboto Condensed";
+    font-size: 110%;
+    margin-inline: 10px;
+}
+
+.nav-logo-text {
+    float: left;
+    position: relative;
+    vertical-align: middle;
+    font-family: "Product Sans";
+    color: #FFFFFF;
+    margin-top: 0.55rem;
+    font-size: 120%;
+    margin-inline: 5px;
+}
+
+.float-right {
+    float: right;
+}
+
+.nav-ham {
+    float: left;
+    color: white;
+    font-size: 1.8rem;
+    position: relative;
+    vertical-align: middle;
+    margin-right: 1rem;
+    cursor: pointer;
+}

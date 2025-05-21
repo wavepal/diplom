@@ -1,0 +1,57 @@
+{% extends "index/layout.html" %}
+{% load static %}
+
+{% block body %}
+<link rel="stylesheet" href="{% static 'css/medical_centers.css' %}">
+<div class="container-fluid">
+    <div class="container">
+        <div class="mc-form-container">
+            <h2 class="mc-form-title">{% if center %}Редактировать{% else %}Добавить{% endif %} медицинский центр</h2>
+            
+            <form method="post">
+                {% csrf_token %}
+                <div class="mc-form-group">
+                    <label for="region">Регион:</label>
+                    <select name="region" id="region" class="mc-form-control" required>
+                        <option value="">Выберите регион</option>
+                        {% for code, name in city_choices %}
+                            <option value="{{ code }}" {% if center.region == code %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mc-form-group">
+                    <label for="med_center">Название медцентра:</label>
+                    <input type="text" name="med_center" id="med_center" class="mc-form-control" 
+                           value="{{ center.med_center }}" required placeholder="Введите название медицинского центра">
+                </div>
+                <div class="mc-form-group">
+                    <label for="address">Адрес:</label>
+                    <input type="text" name="address" id="address" class="mc-form-control" 
+                           value="{{ center.address }}" required placeholder="Введите адрес медицинского центра">
+                </div>
+                <div class="mc-form-group">
+                    <label for="group">Группа медцентров (необязательно):</label>
+                    <select name="group" id="group" class="mc-form-control">
+                        <option value="">Без группы</option>
+                        {% for group in med_center_groups %}
+                            <option value="{{ group.id }}" {% if center.group_id == group.id or default_group_id == group.id %}selected{% endif %}>
+                                {{ group.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mc-form-actions">
+                    <button type="submit" class="mc-submit-button">
+                        {% if center %}Сохранить{% else %}Добавить{% endif %}
+                    </button>
+                    {% if default_group_id %}
+                        <a href="{% url 'group_medical_centers' default_group_id %}" class="mc-cancel-button">Отмена</a>
+                    {% else %}
+                        <a href="{% url 'manage_medical_centers' %}" class="mc-cancel-button">Отмена</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %} 

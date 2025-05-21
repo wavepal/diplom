@@ -1,0 +1,140 @@
+{% extends 'index/layout.html' %}
+{% block title %}
+Настройки - {{form.title}}
+{% endblock %}
+{% load static %}
+{% block script %}
+<script src="{% static 'index/form_12.js' %}"></script>
+<script src="{% static 'lib/cookie.min.js' %}"></script>
+{% endblock %}
+{% block body %}
+<link rel="stylesheet" href="{% static 'css/settings.css' %}">
+<div class="container-fluid">
+    <div class="container main-body">
+        {% with active_tab='questions' %}
+            {% include 'index/includes/sidebar.html' %}
+        {% endwith %}
+        
+        <div class="settings-card">
+            <h1 class="settings-title">Настройки формы</h1>
+            
+            <form id="setting-form">
+                <div class="settings-section">
+                    <h3 class="settings-section-title">Общее</h3>
+                    
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="collect_email" {% if form.collect_email %} checked {% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label class="form-check-label" for="collect_email">Сбор E-mail адресов</label>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="is_quiz" {% if form.is_quiz %} checked {% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label class="form-check-label" for="is_quiz">Преобразовать в тест</label>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="authenticated_responder" {% if form.authenticated_responder %} checked {% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label class="form-check-label" for="authenticated_responder">Только авторизованные пользователи</label>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="limit_ip" {% if form.limit_ip %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label class="form-check-label" for="limit_ip">Возможность ответить только один раз анонимным пользователям</label>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="submit_limit" {% if form.submit_limit %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label class="form-check-label" for="submit_limit">Возможность ответить только один раз авторизованным пользователям</label>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="is_single_form" {% if form.is_single_form %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label class="form-check-label" for="is_single_form">Доступ в телеграм-боте</label>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="is_active" {% if form.is_active %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label class="form-check-label" for="is_active">Учитывать в общей оценке</label>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3 class="settings-section-title">Опрошенные могут:</h3>
+                    
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="edit_after_submit" {% if form.edit_after_submit %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label class="form-check-label" for="edit_after_submit">Вносить изменения после отправки</label>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="allow_view_score" {% if form.allow_view_score %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label class="form-check-label" for="allow_view_score">Просмотреть свои оценки</label>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3 class="settings-section-title">Сообщение после отправки:</h3>
+                    <textarea class="confirmation-message textarea-adjust" id="comfirmation_message" spellcheck="false" {% if not request.user.is_superuser %}disabled{% endif %}>{{form.confirmation_message}}</textarea>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="save-btn">Сохранить</button>
+                    <button type="button" class="delete-btn" id="delete-button">Удалить форму</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const csrf = Cookies.get('csrftoken');
+    
+    document.querySelector("#setting-form").addEventListener("submit", e => {
+        e.preventDefault();
+        fetch('edit_setting', {
+            method: "POST",
+            headers: {'X-CSRFToken': csrf},
+            body: JSON.stringify({
+                "collect_email": document.querySelector("#collect_email").checked,
+                "is_quiz": document.querySelector("#is_quiz").checked,
+                "authenticated_responder": document.querySelector("#authenticated_responder").checked,
+                "confirmation_message": document.querySelector("#comfirmation_message").value,
+                "edit_after_submit": document.querySelector("#edit_after_submit").checked,
+                "allow_view_score": document.querySelector("#allow_view_score").checked,
+                "limit_ip": document.querySelector("#limit_ip").checked,
+                "submit_limit": document.querySelector("#submit_limit").checked,
+                "is_single_form": document.querySelector("#is_single_form").checked,
+                "is_active": document.querySelector("#is_active").checked
+            })
+        })
+        .then(response => {
+            if (response.ok) {
+                window.location.href = '{% url 'edit_form' form.code %}';
+            }
+        });
+    });
+
+    document.querySelector("#delete-button").addEventListener("click", e => {
+        e.preventDefault();
+        if(window.confirm("Вы уверены? Это действие НЕЛЬЗЯ отменить.")){
+            fetch('delete', {
+                method: "DELETE",
+                headers: {'X-CSRFToken': csrf}
+            })
+            .then(() => window.location = "/")
+        }
+    });
+
+    document.querySelectorAll(".textarea-adjust").forEach(tx => {
+        tx.style.height = "auto";
+        tx.style.height = (10 + tx.scrollHeight)+"px";
+        tx.addEventListener('input', e => {
+            tx.style.height = "auto";
+            tx.style.height = (10 + tx.scrollHeight)+"px";
+        });
+    });
+});
+</script>
+{% endblock %}

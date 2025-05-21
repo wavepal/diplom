@@ -1,0 +1,86 @@
+{% extends 'index/layout.html' %}
+{% load static %}
+{% block body %}
+<link rel="stylesheet" href="{% static 'css/login.css' %}">
+<body>
+	<div class="container" id="container">
+		<div class="form-container sign-up-container">
+			<form action="{% url 'register' %}" method="post">
+				{% csrf_token %}
+				<h1 style="font-size: 28px;">Зарегистрироваться</h1>
+				<p class="form-error" id="register-error">{{message}}</p>
+				<input type="text" placeholder="Логин" name="username" required />
+				<input type="email" placeholder="Email" name="email" required />
+				<input type="password" placeholder="Пароль" name="password" required />
+				<input type="password" placeholder="Повторите пароль" name="confirmation" required />
+				<button>Регистрация</button>
+			</form>
+		</div>
+		<div class="form-container sign-in-container">
+			<form action="{% url 'login' %}" method="post">
+				{% csrf_token %}
+				<h1>Войти в аккаунт!</h1>
+				<p class="form-error" id="login-error">{{message}}</p>
+				<input type="text" placeholder="Логин" name="username" required />
+				<input type="password" placeholder="Пароль" name="password" required />
+				<a href="{% url "password_reset" %}">Забыли пароль?</a>
+				<button>Войти</button>
+			</form>
+		</div>
+		<div class="overlay-container">
+			<div class="overlay">
+				<div class="overlay-panel overlay-left">
+					<h1 class="olzhas">С возвращением!</h1>
+					<p class="pole">Можете войти</p>
+					<button class="ghost" id="signIn">Войти</button>
+				</div>
+				<div class="overlay-panel overlay-right">
+					<h1>Добро пожаловать!</h1>
+					<p class="pole">Можете зарегистрироваться</p>
+					<button class="ghost" id="signUp">Регистрация</button>
+				</div>
+			</div>
+		</div>
+	</div>
+<script>
+    const signUpButton = document.getElementById('signUp');
+	const signInButton = document.getElementById('signIn');
+	const container = document.getElementById('container');
+
+	signUpButton.addEventListener('click', () => {
+		container.classList.add("right-panel-active");
+	});
+
+	signInButton.addEventListener('click', () => {
+		container.classList.remove("right-panel-active");
+	});
+</script>
+<script>
+	document.getElementById('region').addEventListener('change', function() {
+		const region = this.value;
+		const medCenterSelect = document.getElementById('med_center');
+		
+		// Включаем/выключаем выбор медцентра в зависимости от выбора региона
+		medCenterSelect.disabled = !region;
+		
+		// Очищаем текущий список медцентров
+		medCenterSelect.innerHTML = '<option value="">Выберите медцентр</option>';
+		
+		if (region) {
+			// Запрашиваем список медцентров для выбранного региона
+			fetch(`/get_med_centers?region=${region}`)
+				.then(response => response.json())
+				.then(data => {
+					data.forEach(item => {
+						const option = document.createElement('option');
+						option.value = item.med_center;
+						option.textContent = `${item.med_center} (${item.address})`;
+						medCenterSelect.appendChild(option);
+					});
+				});
+		}
+	});
+</script>
+</body>
+</html>
+{% endblock %}

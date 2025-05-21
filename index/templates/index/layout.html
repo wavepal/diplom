@@ -1,0 +1,22 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Medical Forms{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/Hur_lUI.css' %}">
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    <link href="{% static 'icons/font/bootstrap-icons.css' %}" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="{% static 'favicon1.ico' %}">
+    {% block script %}
+    {% endblock %}
+</head>
+<body>
+    {% if request.resolver_match.url_name != 'login' and request.resolver_match.url_name != 'password_reset' %}
+    {% include 'index/includes/nav.html' %}
+    {% endif %}
+    {% block body %}
+    {% endblock %}
+</body>
+</html>

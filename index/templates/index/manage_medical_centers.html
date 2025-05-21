@@ -1,0 +1,148 @@
+{% extends "index/layout.html" %}
+{% load static %}
+
+{% block body %}
+<link rel="stylesheet" href="{% static 'css/medical_centers.css' %}">
+<div>
+    <div class="container">
+        <div>
+            <!-- Секция групп медцентров -->
+            <h3 class="mc-section-title">Группы медицинских центров</h3>
+            <div class="mc-centers-grid">
+                {% for group in med_center_groups %}
+                    <div class="mc-center-box mc-group-box" onclick="window.location.href='{% url 'group_medical_centers' group.id %}'">
+                        <div class="mc-box-content">
+                            <div class="mc-box-header">
+                                <h5 class="mc-title-text">{{ group.name }}</h5>
+                                <div class="mc-actions" onclick="event.stopPropagation();">
+                                    <button class="mc-action-btn" onclick="editGroup({{ group.id }})" title="Редактировать">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="mc-action-btn" onclick="deleteGroup({{ group.id }})" title="Удалить">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            {% if group.description %}
+                                <div class="mc-box-info">
+                                    <div class="mc-info-item">
+                                        <i class="bi bi-info-circle"></i>
+                                        <span>{{ group.description }}</span>
+                                    </div>
+                                </div>
+                            {% endif %}
+                            <div class="mc-box-info">
+                                <div class="mc-info-item">
+                                    <i class="bi bi-hospital"></i>
+                                    <span>Медцентров: {{ group.med_centers.count }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+
+                <!-- Карточка для создания новой группы -->
+                <a href="{% url 'add_med_center_group' %}" class="mc-add-card">
+                    <i class="bi bi-plus-circle"></i>
+                    <p class="mc-add-card-text">Создать группу медцентров</p>
+                </a>
+            </div>
+            
+            <!-- Секция медицинских центров -->
+            <h3 class="mc-section-title">Все медицинские центры</h3>
+            <div class="mc-centers-grid">
+                {% if med_centers %}
+                    {% for center in med_centers %}
+                        <div class="mc-center-box" onclick="editCenter({{ center.id }})">
+                            <div class="mc-box-content">
+                                <div class="mc-box-header">
+                                    <h5 class="mc-title-text">{{ center.med_center }}</h5>
+                                    <div class="mc-actions" onclick="event.stopPropagation();">
+                                        <button class="mc-action-btn" onclick="editCenter({{ center.id }})" title="Редактировать">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="mc-action-btn" onclick="deleteCenter({{ center.id }})" title="Удалить">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="mc-box-info">
+                                    <div class="mc-info-item">
+                                        <i class="bi bi-geo-alt-fill"></i>
+                                        <span>{{ center.get_region_display }}</span>
+                                    </div>
+                                    <div class="mc-info-item">
+                                        <i class="bi bi-building-fill"></i>
+                                        <span>{{ center.address|default:"-" }}</span>
+                                    </div>
+                                    {% if center.group %}
+                                    <div class="mc-info-item">
+                                        <i class="bi bi-collection"></i>
+                                        <span>Группа: {{ center.group.name }}</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+                
+                <!-- Карточка для добавления нового медцентра -->
+                <a href="{% url 'add_medical_center' %}" class="mc-add-card">
+                    <i class="bi bi-plus-circle"></i>
+                    <p class="mc-add-card-text">Добавить медицинский центр</p>
+                </a>
+            </div>
+
+            {% if not med_centers and not med_center_groups %}
+                <p class="mc-empty-message">У вас нет добавленных медицинских центров.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function editCenter(centerId) {
+    window.location.href = `/edit-medical-center/${centerId}/`;
+}
+
+function editGroup(groupId) {
+    event.stopPropagation();
+    window.location.href = `/edit-med-center-group/${groupId}/`;
+}
+
+function deleteCenter(centerId) {
+    event.stopPropagation();
+    if (confirm('Вы уверены, что хотите удалить этот медицинский центр?')) {
+        const formData = new FormData();
+        formData.append('action', 'delete');
+        formData.append('center_id', centerId);
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.ok ? window.location.reload() : Promise.reject('Ошибка при удалении'))
+        .catch(error => alert(error));
+    }
+}
+
+function deleteGroup(groupId) {
+    event.stopPropagation();
+    if (confirm('Вы уверены, что хотите удалить эту группу? Медицинские центры в группе не будут удалены.')) {
+        const formData = new FormData();
+        formData.append('action', 'delete_group');
+        formData.append('group_id', groupId);
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.ok ? window.location.reload() : Promise.reject('Ошибка при удалении'))
+        .catch(error => alert(error));
+    }
+}
+</script>
+{% endblock %} 
