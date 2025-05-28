@@ -1,0 +1,50 @@
+{% load calculate_score %}
+{% load static %}
+{% load get_property %}
+{% load generate_color %}
+{% load count %}
+{% load calculate_penalty %}
+{% load divide %}
+<tr class="med-center-row" data-med-center="{{ med_center }}">
+    <td>{{ med_center }}</td>
+    {% for question in form.questions.all %}
+        {% if question.question_type == "range slider" %}
+            <td class="column-{{ question.id }}" data-max-value="{{ question.max_value }}">
+                <span class="score-title average-slider-value" data-raw-value="{{ scores.scores|get_item:question.id|default:"N/A" }}">
+                    {% with value=scores.scores|get_item:question.id %}
+                        {% if value is None or value == '' %}
+                            N/A
+                        {% elif value == 0 %}
+                            0
+                        {% else %}
+                            {{ value }}
+                        {% endif %}
+                    {% endwith %}                                        
+                </span>
+            </td>
+        {% endif %}
+    {% endfor %}
+    {% with stats=med_center_stats|get_item:med_center %}
+        {% for question in form.questions.all %}
+            {% if question.is_negative %}
+                <td class="column-answ-{{ question.id }}">
+                    {{ stats.questions|get_dict_item:question.id|default:0 }}
+                </td>
+            {% endif %}
+        {% endfor %}
+        <td class="total-score">
+            {% with total_score=scores.total_score %}
+                {% if total_score == None %}
+                    <a class="score-title" style="color: black;">N/A</a>
+                {% elif total_score >= 80 %}
+                    <a class="score-title" style="color: #00b300;">{{ total_score }}</a>
+                {% elif total_score >= 50 %}
+                    <a class="score-title" style="color: #ffcc00;">{{ total_score }}</a>
+                {% else %}
+                    <a class="score-title" style="color: #ff3300;">{{ total_score }}</a>
+                {% endif %}
+            {% endwith %}
+        </td>
+        <td class="score-title column-total-responses">{{ stats.total_responses }}</td>
+    {% endwith %}
+</tr> 

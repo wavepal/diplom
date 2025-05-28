@@ -39,7 +39,7 @@
                 </div>
             </div>
             <div class="profile-details">
-              <h2>{{ user }}</h2>
+                <h2>{{ user }}</h2>
                 
                 <div class="profile-info-grid">
                     <div class="profile-info-item">
@@ -87,15 +87,15 @@
                         <div>
                             <span class="info-label">Пол:</span>
                             <span class="info-value">
-                {% if user.usergender.gender == 'O' %}
-                Не указано
-                {% elif user.usergender.gender == 'M' %}
-                Мужской
-                {% elif user.usergender.gender == 'F' %}
-                Женский
-                {% else %}
-                Не указано
-                {% endif %}
+                                {% if user.usergender.gender == 'O' %}
+                                Не указано
+                                {% elif user.usergender.gender == 'M' %}
+                                Мужской
+                                {% elif user.usergender.gender == 'F' %}
+                                Женский
+                                {% else %}
+                                Не указано
+                                {% endif %}
                             </span>
                         </div>
                     </div>
@@ -112,54 +112,59 @@
 
         <!-- Секция управления для администратора -->
         {% if request.user.is_superuser %}
-        <div id="edit_profile_page" class="admin-controls-container" style="display: none">
-            <div class="admin-controls-header">
+        <div id="edit_profile_page" class="edit-profile-container" style="display: none">
+            <div class="edit-profile-header">
                 <h2>Управление пользователем</h2>
                 <button class="close-edit-btn" onclick="toggleEditProfile(event)">
                     <i class="bi bi-x-lg"></i>
                 </button>
-    </div>
+            </div>
             
-            <div class="admin-controls-content">
-                <div class="admin-control-card">
-                    <h3><i class="bi bi-person-badge"></i> Изменить роль пользователя</h3>
-                    <form method="post" action="{% url 'update_user_status' user.id %}" class="admin-form">
-                        {% csrf_token %}
-                        <div class="form-field">
-                            <label for="roleSelect">Выберите роль:</label>
-                            <select class="dark-select" id="roleSelect" name="role">
+            <div class="edit-profile-tabs">
+                <button class="tab-btn active" data-tab="role">Роль</button>
+                <button class="tab-btn" data-tab="med">Медцентр</button>
+            </div>
+            
+            <div class="edit-profile-content">
+                <!-- Вкладка Роль -->
+                <div class="tab-content role active">
+                    <div class="form-group">
+                        <form method="post" action="{% url 'update_user_status' user.id %}" class="edit-form">
+                            {% csrf_token %}
+                            <h3><i class="bi bi-person-badge"></i> Изменить роль пользователя</h3>
+                            <select class="filter-select" id="roleSelect" name="role">
                                 <option value="ADMIN" {% if current_role == 'ADMIN' %}selected{% endif %}>Администратор</option>
                                 <option value="TRAINER" {% if current_role == 'TRAINER' %}selected{% endif %}>Тренер</option>
                                 <option value="MANAGER" {% if current_role == 'MANAGER' %}selected{% endif %}>Руководитель</option>
                                 <option value="USER" {% if current_role == 'USER' %}selected{% endif %}>Пользователь</option>
                             </select>
-                        </div>
-                        <button type="submit" class="primary-button"><i class="bi bi-check-lg"></i> Применить</button>
-                    </form>
+                            <button type="submit" class="primary-button"><i class="bi bi-check-lg"></i> Применить</button>
+                        </form>
+                    </div>
                 </div>
                 
-                <div class="admin-control-card">
-                    <h3><i class="bi bi-building"></i> Изменить медицинский центр</h3>
-                    <form method="post" action="{% url 'update_med_center' user.id %}" class="admin-form">
-                        {% csrf_token %}
-                        <div class="form-field">
-                        <label for="med_center">Выберите медцентр:</label>
-                            <select class="dark-select" name="med_center" id="med_center">
-                            {% regroup med_centers by get_region_display as region_list %}
-                            {% for region in region_list %}
-                                <optgroup label="{{ region.grouper }}">
-                                    {% for center in region.list %}
-                                        <option value="{{ center.med_center }}" 
-                                            {% if user.med_info.med_center == center.med_center %}selected{% endif %}>
-                                            {{ center.med_center }}
-                                        </option>
-                                    {% endfor %}
-                                </optgroup>
-                            {% endfor %}
-                        </select>
-                        </div>
-                        <button type="submit" class="primary-button"><i class="bi bi-check-lg"></i> Применить</button>
-                    </form>
+                <!-- Вкладка Медцентр -->
+                <div class="tab-content med">
+                    <div class="form-group">
+                        <form method="post" action="{% url 'update_med_center' user.id %}" class="edit-form">
+                            {% csrf_token %}
+                            <h3><i class="bi bi-building"></i> Изменить медицинский центр</h3>
+                            <select class="filter-select" name="med_center" id="med_center">
+                                {% regroup med_centers by get_region_display as region_list %}
+                                {% for region in region_list %}
+                                    <optgroup label="{{ region.grouper }}">
+                                        {% for center in region.list %}
+                                            <option value="{{ center.med_center }}" 
+                                                {% if user.med_info.med_center == center.med_center %}selected{% endif %}>
+                                                {{ center.med_center }}
+                                            </option>
+                                        {% endfor %}
+                                    </optgroup>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="primary-button"><i class="bi bi-check-lg"></i> Применить</button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
@@ -167,28 +172,48 @@
     </div>
 </div>
 
-    <script>
+<script>
     // Переключение между режимами просмотра и управления
-        function toggleEditProfile(event) {
-            if (event) {
-                event.stopPropagation();
-            }
-        var adminControlsPage = document.getElementById("edit_profile_page");
+    function toggleEditProfile(event) {
+        if (event) {
+            event.stopPropagation();
+        }
+        var editProfilePage = document.getElementById("edit_profile_page");
         var editProfileBtn = document.getElementById("edit-profile-btn");
         
-        if (adminControlsPage.style.display === 'none' || adminControlsPage.style.display === '') {
-            adminControlsPage.style.display = 'block';
+        if (editProfilePage.style.display === 'none' || editProfilePage.style.display === '') {
+            editProfilePage.style.display = 'block';
             setTimeout(function() {
-                adminControlsPage.classList.add('active');
+                editProfilePage.classList.add('active');
             }, 10);
             editProfileBtn.innerHTML = '<i class="bi bi-eye"></i> Просмотр';
         } else {
-            adminControlsPage.classList.remove('active');
+            editProfilePage.classList.remove('active');
             setTimeout(function() {
-                adminControlsPage.style.display = 'none';
+                editProfilePage.style.display = 'none';
             }, 300);
             editProfileBtn.innerHTML = '<i class="bi bi-pencil-square"></i> Управление';
         }
-        }
-    </script>
+    }
+
+    // Переключение между вкладками в режиме управления
+    document.addEventListener('DOMContentLoaded', function() {
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                // Убираем активный класс со всех кнопок и контентов
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Добавляем активный класс нажатой кнопке
+                this.classList.add('active');
+                
+                // Показываем соответствующий контент
+                const tabName = this.getAttribute('data-tab');
+                document.querySelector(`.tab-content.${tabName}`).classList.add('active');
+            });
+        });
+    });
+</script>
 {% endblock %}

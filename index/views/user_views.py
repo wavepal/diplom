@@ -47,7 +47,7 @@ def update_user_status(request, user_id):
     # Получаем текущую роль пользователя для отображения в форме
     current_role = UserRole.objects.filter(user=user).first()
     
-    return render(request, 'index/user_detail.html', {
+    return render(request, 'index/user/user_detail.html', {
         'user': user,
         'current_role': current_role.role if current_role else UserRole.USER
     })
@@ -63,7 +63,7 @@ def change_desc(request):
         return redirect('edit_profile')  
 
     context = {}
-    return render(request, 'index/edit-profile.html', context)
+    return render(request, 'index/user/user_profile.html', context)
 
 
 def change_date_of_birth(request):
@@ -89,7 +89,7 @@ def change_date_of_birth(request):
         return redirect('404') 
 
     context = {'user': request.user}
-    return render(request, 'index/edit-profile.html', context)
+    return render(request, 'index/user/user_profile.html', context)
 
 def delete_date_of_birth(request):
     user = request.user
@@ -122,7 +122,7 @@ def change_gender(request):
         return redirect('edit_profile')
 
     context = {'user': request.user}
-    return render(request, 'index/edit-profile.html', context)
+    return render(request, 'index/user/user_profile.html', context)
 
 @login_required
 def change_username(request):
@@ -186,7 +186,7 @@ def user_list(request):
     users = User.objects.all()
     if not request.user.is_authenticated:
         return HttpResponseRedirect(reverse("login"))
-    return render(request, 'index/user-list.html', {'users': users})
+    return render(request, 'index/user/user_list.html', {'users': users})
 
 def user_detail(request, pk):
     user = get_object_or_404(User, pk=pk)
@@ -199,7 +199,7 @@ def user_detail(request, pk):
         'med_centers': RegionMedCenter.objects.all().order_by('region', 'med_center'),
         'user': user
     }
-    return render(request, 'index/user_detail.html', context)
+    return render(request, 'index/user/user_detail.html', context)
 
 
 def edit_profile(request):
@@ -219,9 +219,9 @@ def edit_profile(request):
         'user_med': UserMed.objects.get_or_create(user=request.user)[0],
         'city_choices': UserCity.CITY_CHOICES
     }
-    return render(request, 'index/edit-profile.html', context)
+    return render(request, 'index/user/user_profile.html', context)
 
 def view_profile(request):
     if not request.user.is_authenticated:
         return HttpResponseRedirect(reverse("login"))
-    return render(request, 'index/view-profile.html')
+    return render(request, 'index/user/user_profile.html')

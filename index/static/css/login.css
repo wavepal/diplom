@@ -1,17 +1,16 @@
-      
-@import url('https://fonts.googleapis.com/css?family=Montserrat:400,800');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;800&display=swap');
 
 * {
 	box-sizing: border-box;
 }
 
 body {
-    background-color: #0D0D11;
+    background-color: #FEFEFE;
 	display: flex;
 	justify-content: center;
 	align-items: center;
 	flex-direction: column;
-	font-family: 'Montserrat', sans-serif;
+	font-family: 'Inter', sans-serif;
 	height: 100vh;
 	margin: 0;
 	padding: 50px 0;
@@ -22,6 +21,7 @@ h1 {
 	margin: 0;
     color: white;
     margin-bottom: 25px;
+    font-family: 'Jost', sans-serif;
 }
 
 .olzhas {
@@ -55,8 +55,8 @@ a {
 
 button {
 	border-radius: 20px;
-	border: 1px solid #4D5AFF;
-	background-color: #4D5AFF;
+	border: 1px solid #1669FF;
+	background-color: #1669FF;
 	color: #FFFFFF;
 	font-size: 14px;
 	font-weight: bold;
@@ -66,6 +66,7 @@ button {
 	transition: transform 80ms ease-in;
     cursor: pointer;
     margin-top: 15px;
+    font-family: 'Jost', sans-serif;
 }
 
 button:active {
@@ -82,7 +83,7 @@ button.ghost {
 }
 
 form {
-	background-color: #1E1E25;
+	background-color: #383C40;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -94,26 +95,24 @@ form {
 
 .question-reg-select{
 	color: #757575;
-	background-color: #0D0D11;
+	background-color: #FEFEFE;
     border: 1px solid #ffffff00;
     height: 35px;
 }
 
 input {
-	background-color: #1E1E25;
+	background-color: #F7F8FA;
 	border: none;
 	padding: 14px 18px;
 	margin: 10px 0;
 	width: 100%;
-    color: white;
     font-size: 14px;
+	border-radius: 10px;
 }   
 
 .container {
-	background-color: #0D0D11;
+	background-color: #FEFEFE;
 	border-radius: 15px;
-  	box-shadow: 0 14px 28px rgba(0,0,0,0.25), 
-			0 10px 10px rgba(0,0,0,0.22);
 	position: relative;
 	overflow: hidden;
 	width: 850px;
@@ -182,9 +181,9 @@ input {
 }
 
 .overlay {
-	background: #4D5AFF;
-	background: -webkit-linear-gradient(to right, #4D5AFF, #FF416C);
-	background: linear-gradient(to right, #4D5AFF, 58%);
+	background: #1669FF;
+	background: -webkit-linear-gradient(to right, #1669FF, #FF416C);
+	background: linear-gradient(to right, #1669FF, 58%);
 	background-repeat: no-repeat;
 	background-size: cover;
 	background-position: 0 0;
@@ -270,6 +269,7 @@ input {
       text-align: center;
       top: 15px; 
       font-size: 14px;
+      font-family: 'Inter', sans-serif;
     }
 
     .question-reg-select {
@@ -281,6 +281,7 @@ input {
         margin: 10px 0;
         padding: 8px 15px;
         font-size: 14px;
+        font-family: 'Jost', sans-serif;
     }
 
     .question-reg-select:disabled {
@@ -298,4 +299,5 @@ input {
         color: #ff4444;
         margin: 10px 0;
         font-size: 14px;
+        font-family: 'Inter', sans-serif;
     }

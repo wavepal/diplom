@@ -1,0 +1,92 @@
+{% load calculate_score %}
+{% load static %}
+{% load get_property %}
+{% load generate_color %}
+{% load count %}
+{% load calculate_penalty %}
+{% load divide %}
+{% load get_choice %}
+<tr data-response-id="{{ response.id }}">
+    <td class="column-user">{% if response.responder_username %}{{ response.responder_username }}{% else %}Аноним{% endif %}</td>
+    <td class="column-city">
+        {% if response.responder_city %}
+            {{ response.get_city_display }}
+        {% else %}
+            N/A
+        {% endif %}
+    </td>
+    <td class="column-age">
+        {% if response.responder_age %}
+            {{ response.responder_age }}
+        {% else %}
+            N/A
+        {% endif %}
+    </td>
+    <td class="column-gender">
+        {% if response.responder_gender %}
+            {{ response.get_gender_display }}
+        {% else %}
+            N/A
+        {% endif %}
+    </td>
+    <td class="column-med">
+        {% if response.responder_med %}
+            {{ response.responder_med }}
+        {% else %}
+            N/A
+        {% endif %}
+    </td>
+    <td class="column-created-at">{{ response.createdAt|date:"d.m.Y H:i" }}</td>
+    {% for question in form.questions.all %}
+        {% if question.question_type != "title" %}
+            {% with answer=response.response.all|get_answer:question %}
+                <td class="column-question-{{ question.id }} text-table">
+                    {% if not answer %}
+                        N/A
+                    {% else %}
+                        {% if question.question_type == "paragraph" %}
+                            <p class="long-answer">{{ answer.answer|default:"N/A"|linebreaksbr }}</p>
+                        {% elif question.question_type == "short" %}
+                            <p class="short-answer">{{ answer.answer|default:"N/A" }}</p>
+                        {% elif question.question_type == "range slider" %}
+                            <a class="score-title range-slider-value" data-raw-value="{{ answer.answer }}">{{ answer.answer }}</a>
+                        {% elif question.question_type == "multiple choice" %}
+                            {% with choice=question.choices|get_choice_by_id:answer.answer %}
+                                {% if choice %}
+                                    <a class="score-title">{{ choice.choice }}
+                                        {% if form.is_quiz %}
+                                            <span class="txtClr column-choice-score">({{ choice.scores }} баллов)</span>
+                                        {% endif %}
+                                    </a>
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            {% endwith %}
+                        {% elif question.question_type == "checkbox" %}
+                            {% if answer.answer %}
+                                {% with answer_ids=answer.answer.split %}
+                                    <ul>
+                                    {% for choice in question.choices.all %}
+                                        {% if choice.id|stringformat:"s" in answer_ids %}
+                                            <li>{{ choice.choice }}
+                                                {% if form.is_quiz %}
+                                                    <span>({{ choice.scores }} баллов)</span>
+                                                {% endif %}
+                                            </li>
+                                        {% endif %}
+                                    {% endfor %}
+                                    </ul>
+                                {% endwith %}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        {% endif %}
+                    {% endif %}
+                </td>
+            {% endwith %}
+        {% endif %}
+    {% endfor %}
+    {% if form.is_quiz %}
+        <td class="column-total-score column-total-score-percentage">{{ response|calculate_score:form }} / {{ form|calculate_total_score }}</td>
+    {% endif %}
+</tr>

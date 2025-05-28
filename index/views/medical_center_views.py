@@ -38,7 +38,7 @@ def add_medical_center(request):
                 return HttpResponseRedirect(reverse("group_medical_centers", args=[group.id]))
             return HttpResponseRedirect(reverse("manage_medical_centers"))
             
-    return render(request, "index/add_edit_medical_center.html", {
+    return render(request, "index/medcenters/add_edit_medical_center.html", {
         "city_choices": UserCity.CITY_CHOICES,
         "med_center_groups": MedCenterGroup.objects.all(),
         "default_group_id": default_group_id
@@ -84,7 +84,7 @@ def edit_medical_center(request, center_id):
                 return HttpResponseRedirect(reverse("group_medical_centers", args=[return_to_group]))
             return HttpResponseRedirect(reverse("manage_medical_centers"))
             
-    return render(request, "index/add_edit_medical_center.html", {
+    return render(request, "index/medcenters/add_edit_medical_center.html", {
         "center": center,
         "city_choices": UserCity.CITY_CHOICES,
         "med_center_groups": MedCenterGroup.objects.all(),
@@ -147,7 +147,7 @@ def manage_medical_centers(request):
     med_center_groups = MedCenterGroup.objects.all().order_by('name')
     city_choices = UserCity.CITY_CHOICES
     
-    return render(request, "index/manage_medical_centers.html", {
+    return render(request, "index/medcenters/manage_medical_centers.html", {
         "med_centers": med_centers,
         "med_center_groups": med_center_groups,
         "city_choices": city_choices
@@ -179,7 +179,7 @@ def update_med_center(request, user_id):
         else:
             messages.error(request, "Пожалуйста, выберите медицинский центр.")
     
-    return render(request, 'index/user_detail.html', {
+    return render(request, 'index/medcenters/manage_medical_centers.html', {
         'user': user,
         'med_centers': med_centers,
     })

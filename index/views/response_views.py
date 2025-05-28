@@ -18,6 +18,11 @@ from index.templatetags.calculate_score import calculate_score
 from index.templatetags.calculate_score import calculate_total_score
 from django.db.models import Prefetch, Count, Avg, Q
 from dateutil.relativedelta import relativedelta
+from django.core.paginator import Paginator, EmptyPage
+from django.template.loader import render_to_string
+from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
+from django.utils.http import quote as urlquote
 
 @csrf_exempt
 def delete_selected_responses(request):
@@ -110,12 +115,18 @@ def responses(request, code):
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
     
-    # Оптимизированный базовый запрос с prefetch_related
+    # Базовый запрос с минимально необходимыми данными для отображения страницы
     all_responses = Responses.objects.filter(response_to=formInfo).select_related(
         'responder'
-    ).prefetch_related(
-        Prefetch('response', 
-                 queryset=Answer.objects.select_related('answer_to').prefetch_related('answer_to__choices')),
+    ).only(
+        'id', 
+        'response_code',
+        'responder_username',
+        'responder_city',
+        'responder_gender',
+        'responder_age',
+        'responder_med',
+        'createdAt'
     )
     
     # Применяем фильтры с использованием Q objects для оптимизации
@@ -144,90 +155,27 @@ def responses(request, code):
 
     all_responses = all_responses.filter(filters)
 
-    # Оптимизированная обработка данных
-    responsesSummary = []
-    choiceAnswered = {}
-    choices_dict = {}
+    # Process questions and answers
+    responsesSummary, choiceAnswered, choices_dict = process_questions_and_answers(formInfo)
     
-    # Предварительно загружаем все вопросы и варианты ответов
-    questions = formInfo.questions.prefetch_related('choices').exclude(question_type="title")
-    
-    for question in questions:
-        answers = Answer.objects.filter(
-            answer_to=question.id, 
-            is_skipped=False,
-            response__in=all_responses
-        ).select_related('answer_to').prefetch_related('answer_to__choices')
-        
-        if question.question_type in ["multiple choice", "checkbox"]:
-            choiceAnswered[question.id] = {}
-            for answer in answers:
-                try:
-                    choice = answer.answer_to.choices.get(id=answer.answer)
-                    choices_dict[answer.answer] = choice.choice
-                    unique_choice_key = f"{choice.choice}"
-                    choiceAnswered[question.id][unique_choice_key] = choiceAnswered[question.id].get(unique_choice_key, 0) + 1
-                except Choices.DoesNotExist:
-                    continue
-
-        responsesSummary.append({"question": question, "answers": answers})
-
-    # Оптимизированный расчет средних оценок
-    average_scores = calculate_average_scores(all_responses, formInfo)
-    average_scores_sorted = sorted(
-        [item for item in average_scores.items() if item[1]['total_score'] is not None],
-        key=lambda x: x[1]['total_score'],
-        reverse=True
-    )
-
-    # Оптимизированный расчет статистики медцентров
-    med_center_stats = get_med_center_stats(formInfo, all_responses)
-
-    processed_data = {
-        'responsesSummary': responsesSummary,
-        'choiceAnswered': choiceAnswered,
-        'choices_dict': choices_dict,
-        'average_scores': average_scores,
-        'average_scores_sorted': average_scores_sorted,
-        'med_center_stats': med_center_stats
-    }
-    
-    # Оптимизируем получение range_slider_data
+    # Get range slider data
     range_slider_data = get_range_slider_data(formInfo, all_responses)
-    
-    # Оптимизируем получение response_answers
-    response_answers = get_response_answers(all_responses, formInfo)
-    
-    # Оптимизируем получение user_city_dict
-    user_city_dict = {response.id: response.responder_city for response in all_responses}
-    
-    # Оптимизируем получение average_data
-    average_data = get_average_data(formInfo, all_responses)
-    
-    # Оптимизируем получение final_scores
-    final_scores = calculate_final_scores(request, code)
 
+    # Подготавливаем базовый контекст с минимально необходимыми данными
     context = {
         "form": formInfo,
         "responses": all_responses,
-        "responsesSummary": processed_data['responsesSummary'],
-        "filteredResponsesSummary": processed_data['choiceAnswered'],
-        "choices_dict": processed_data['choices_dict'],
-        "average_scores_sorted": processed_data['average_scores_sorted'],
-        "response_answers": response_answers,
-        "city_choices": UserCity.CITY_CHOICES,
-        "user_city_dict": user_city_dict,
+        "responsesSummary": responsesSummary,
+        "choiceAnswered": choiceAnswered,
+        "choices_dict": choices_dict,
         "range_slider_data": range_slider_data,
-        "average_data": average_data,
+        "city_choices": UserCity.CITY_CHOICES,
         'med_centers': RegionMedCenter.objects.values_list('med_center', flat=True).distinct(),
         'med_center_groups': MedCenterGroup.objects.all().order_by('name'),
-        "average_scores": processed_data['average_scores'],
-        "med_center_stats": processed_data['med_center_stats'],
-        "final_scores": final_scores,
         'active_forms': Form.objects.filter(is_active=True),
     }
 
-    return render(request, "index/responses.html", context)
+    return render(request, "index/form/analytics.html", context)
 
 def get_filtered_responses(formInfo, age_min, age_max, selected_gender, selected_cities):
     all_responses = Responses.objects.filter(response_to=formInfo)
@@ -908,7 +856,7 @@ def response(request, code, response_code):
                     score += response.answer_to.score
                 score += selected_scores_sum
 
-    return render(request, "index/response.html", {
+    return render(request, "index/form/response.html", {
         "form": formInfo,
         "response": responseInfo,
         "score": score,
@@ -1028,11 +976,11 @@ def edit_response(request, code, response_code):
         if formInfo.is_quiz:
             return HttpResponseRedirect(reverse("response", args=[formInfo.code, response.response_code]))
         else:
-            return render(request, "index/form_response.html", {
+            return render(request, "index/form/form_response.html", {
                 "form": formInfo,
                 "code": response.response_code
             })
-    return render(request, "index/edit_response.html", {
+    return render(request, "index/form/edit_response.html", {
         "form": formInfo,
         "response": response
     })
@@ -1130,3 +1078,447 @@ def check_question_has_answers(request, question_id):
     return JsonResponse({
         'has_answers': has_answers
     })
+
+def load_responses(request, code):
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    formInfo = get_object_or_404(Form, code=code)
+    page = int(request.GET.get('page', 1))
+    per_page = int(request.GET.get('per_page', 20))
+
+    # Get all responses with prefetch_related
+    responses = Responses.objects.filter(response_to=formInfo).select_related(
+        'responder'
+    ).prefetch_related(
+        'response',
+        'response__answer_to',
+        'response__answer_to__choices'
+    ).order_by('-createdAt')
+
+    # Create paginator
+    paginator = Paginator(responses, per_page)
+    page_obj = paginator.get_page(page)
+
+    # Format response data
+    response_data = []
+    for response in page_obj:
+        data = {
+            'id': response.id,
+            'username': response.responder_username if response.responder_username else 'Anonymous',
+            'url': reverse('response', args=[formInfo.code, response.response_code]),
+            'profile_image': None,
+            'score': None
+        }
+
+        # Add profile image if exists
+        if response.responder and hasattr(response.responder, 'image_info'):
+            profile_image = response.responder.image_info.first()
+            if profile_image and profile_image.image:
+                data['profile_image'] = profile_image.image.url
+
+        # Add score if form is quiz
+        if formInfo.is_quiz:
+            data['score'] = f"{calculate_score(response, formInfo)} / {calculate_total_score(formInfo)}"
+
+        response_data.append(data)
+
+    return JsonResponse({
+        'responses': response_data,
+        'has_next': page_obj.has_next()
+    })
+
+def search_responses(request, code):
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    formInfo = get_object_or_404(Form, code=code)
+    search_term = request.GET.get('term', '').lower()
+
+    # Get filtered responses
+    responses = Responses.objects.filter(
+        response_to=formInfo
+    ).filter(
+        Q(responder_username__icontains=search_term) |
+        Q(response_code__icontains=search_term)
+    ).select_related(
+        'responder'
+    ).prefetch_related(
+        'response',
+        'response__answer_to',
+        'response__answer_to__choices'
+    ).order_by('-createdAt')
+
+    # Format response data
+    response_data = []
+    for response in responses:
+        data = {
+            'id': response.id,
+            'username': response.responder_username if response.responder_username else 'Anonymous',
+            'url': reverse('response', args=[formInfo.code, response.response_code]),
+            'profile_image': None,
+            'score': None
+        }
+
+        # Add profile image if exists
+        if response.responder and hasattr(response.responder, 'image_info'):
+            profile_image = response.responder.image_info.first()
+            if profile_image and profile_image.image:
+                data['profile_image'] = profile_image.image.url
+
+        # Add score if form is quiz
+        if formInfo.is_quiz:
+            data['score'] = f"{calculate_score(response, formInfo)} / {calculate_total_score(formInfo)}"
+
+        response_data.append(data)
+
+    return JsonResponse({'responses': response_data})
+
+def load_table_data(request, code):
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    try:
+        formInfo = get_object_or_404(Form, code=code)
+        page = int(request.GET.get('page', 1))
+        per_page = int(request.GET.get('per_page', 20))
+
+        # Get all responses with prefetch_related
+        responses = Responses.objects.filter(response_to=formInfo).select_related(
+            'responder'
+        ).prefetch_related(
+            'response',
+            'response__answer_to',
+            'response__answer_to__choices'
+        ).order_by('-createdAt')
+
+        # Create paginator
+        paginator = Paginator(responses, per_page)
+        try:
+            page_obj = paginator.page(page)
+        except EmptyPage:
+            return JsonResponse({'rows': [], 'has_next': False})
+
+        # Format response data
+        rows = []
+        for response in page_obj:
+            # Render row HTML using a template
+            row_html = render_to_string('index/tables/response_table_row.html', {
+                'response': response,
+                'form': formInfo,
+                'request': request
+            })
+            rows.append({'html': row_html})
+
+        return JsonResponse({
+            'rows': rows,
+            'has_next': page_obj.has_next()
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+def load_med_centers_data(request, code):
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    try:
+        formInfo = get_object_or_404(Form, code=code)
+        page = int(request.GET.get('page', 1))
+        per_page = int(request.GET.get('per_page', 20))
+
+        # Get filtered responses
+        responses = Responses.objects.filter(response_to=formInfo)
+        
+        # Calculate average scores
+        average_scores = calculate_average_scores(responses, formInfo)
+        med_center_stats = get_med_center_stats(formInfo, responses)
+        
+        average_scores_sorted = sorted(
+            [item for item in average_scores.items() if item[1]['total_score'] is not None],
+            key=lambda x: x[1]['total_score'],
+            reverse=True
+        )
+
+        # Create paginator
+        paginator = Paginator(average_scores_sorted, per_page)
+        try:
+            page_obj = paginator.page(page)
+        except EmptyPage:
+            return JsonResponse({'rows': [], 'has_next': False})
+
+        # Format response data
+        rows = []
+        for med_center, scores in page_obj:
+            # Render row HTML using a template
+            row_html = render_to_string('index/tables/med_center_table_row.html', {
+                'med_center': med_center,
+                'scores': scores,
+                'form': formInfo,
+                'med_center_stats': med_center_stats,
+                'request': request
+            })
+            rows.append({'html': row_html})
+
+        return JsonResponse({
+            'rows': rows,
+            'has_next': page_obj.has_next()
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+def load_total_scores_data(request, code):
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    try:
+        formInfo = get_object_or_404(Form, code=code)
+        page = int(request.GET.get('page', 1))
+        per_page = int(request.GET.get('per_page', 20))
+
+        # Calculate final scores
+        final_scores = calculate_final_scores(request, code)
+        final_scores_list = sorted(
+            final_scores.items(),
+            key=lambda x: x[1]['total_score'] if x[1]['total_score'] is not None else -1,
+            reverse=True
+        )
+
+        # Create paginator
+        paginator = Paginator(final_scores_list, per_page)
+        try:
+            page_obj = paginator.page(page)
+        except EmptyPage:
+            return JsonResponse({'rows': [], 'has_next': False})
+
+        # Format response data
+        rows = []
+        for med_center, data in page_obj:
+            # Render row HTML using a template
+            row_html = render_to_string('index/tables/total_scores_table_row.html', {
+                'med_center': med_center,
+                'data': data,
+                'active_forms': Form.objects.filter(is_active=True),
+                'request': request
+            })
+            rows.append({'html': row_html})
+
+        return JsonResponse({
+            'rows': rows,
+            'has_next': page_obj.has_next()
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def load_final_scores_chart_data(request, code):
+    """Load data for final scores chart asynchronously"""
+    try:
+        formInfo = Form.objects.get(code=code)
+        if not formInfo.creator == request.user and not request.user.is_superuser:
+            return JsonResponse({'error': 'Unauthorized'}, status=403)
+
+        final_scores = calculate_final_scores(request, code)
+        active_forms = Form.objects.filter(is_active=True)
+
+        chart_data = {
+            'labels': list(final_scores.keys()),
+            'datasets': []
+        }
+
+        # Generate colors for each dataset
+        colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40']
+
+        for idx, form in enumerate(active_forms):
+            color = colors[idx % len(colors)]  # Cycle through colors if more forms than colors
+            dataset = {
+                'label': form.title,
+                'data': [final_scores[med_center]['forms'].get(form.title, 0) for med_center in final_scores.keys()],
+                'backgroundColor': color,
+                'borderColor': color,
+                'borderWidth': 2,
+                'fill': False
+            }
+            chart_data['datasets'].append(dataset)
+
+        return JsonResponse(chart_data)
+    except Form.DoesNotExist:
+        return JsonResponse({'error': 'Form not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def load_negative_impact_chart_data(request, code):
+    """Load data for negative impact chart asynchronously"""
+    try:
+        formInfo = Form.objects.get(code=code)
+        if not formInfo.creator == request.user and not request.user.is_superuser:
+            return JsonResponse({'error': 'Unauthorized'}, status=403)
+
+        final_scores = calculate_final_scores(request, code)
+
+        chart_data = {
+            'labels': list(final_scores.keys()),
+            'datasets': [
+                {
+                    'label': 'Итоговая оценка',
+                    'data': [data['total_score'] for data in final_scores.values()],
+                    'backgroundColor': '#4CAF50',
+                    'borderColor': '#4CAF50',
+                    'borderWidth': 2,
+                    'yAxisID': 'y-axis-1',
+                    'order': 2
+                },
+                {
+                    'label': 'Количество жалоб',
+                    'data': [data['negative_count'] for data in final_scores.values()],
+                    'backgroundColor': '#FF3030',
+                    'borderColor': '#FF3030',
+                    'borderWidth': 2,
+                    'type': 'line',
+                    'yAxisID': 'y-axis-2',
+                    'order': 1
+                }
+            ]
+        }
+
+        return JsonResponse(chart_data)
+    except Form.DoesNotExist:
+        return JsonResponse({'error': 'Form not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+def get_cache_key(request, formInfo, data_type):
+    """Генерация ключа кэша на основе параметров запроса"""
+    params = request.GET.copy()
+    params['form_code'] = formInfo.code
+    params['data_type'] = data_type
+    return f"analytics_data:{urlquote(str(sorted(params.items())))}"
+
+@login_required
+def load_analytics_data(request, code):
+    """Загрузка аналитических данных для формы с кэшированием"""
+    formInfo = get_object_or_404(Form, code=code)
+    data_type = request.GET.get('data_type')
+    
+    # Генерируем ключ кэша
+    cache_key = get_cache_key(request, formInfo, data_type)
+    
+    # Пробуем получить данные из кэша
+    cached_data = cache.get(cache_key)
+    if cached_data:
+        return JsonResponse(cached_data)
+    
+    # Если данных в кэше нет, вычисляем их
+    all_responses = get_filtered_responses_queryset(request, formInfo)
+    
+    if data_type == 'summary':
+        questions = formInfo.questions.prefetch_related('choices').exclude(question_type="title")
+        responsesSummary = []
+        choiceAnswered = {}
+        choices_dict = {}
+        
+        for question in questions:
+            answers = Answer.objects.filter(
+                answer_to=question.id, 
+                is_skipped=False,
+                response__in=all_responses
+            ).select_related('answer_to').prefetch_related('answer_to__choices')
+            
+            if question.question_type in ["multiple choice", "checkbox"]:
+                choiceAnswered[question.id] = {}
+                for answer in answers:
+                    try:
+                        choice = answer.answer_to.choices.get(id=answer.answer)
+                        choices_dict[answer.answer] = choice.choice
+                        unique_choice_key = f"{choice.choice}"
+                        choiceAnswered[question.id][unique_choice_key] = choiceAnswered[question.id].get(unique_choice_key, 0) + 1
+                    except Choices.DoesNotExist:
+                        continue
+            
+            responsesSummary.append({"question": question, "answers": answers})
+            
+        data = {
+            'responsesSummary': responsesSummary,
+            'choiceAnswered': choiceAnswered,
+            'choices_dict': choices_dict,
+        }
+        
+    elif data_type == 'averages':
+        average_scores = calculate_average_scores(all_responses, formInfo)
+        average_scores_sorted = sorted(
+            [item for item in average_scores.items() if item[1]['total_score'] is not None],
+            key=lambda x: x[1]['total_score'],
+            reverse=True
+        )
+        data = {
+            'average_scores': average_scores,
+            'average_scores_sorted': average_scores_sorted,
+        }
+        
+    elif data_type == 'med_stats':
+        data = {
+            'med_center_stats': get_med_center_stats(formInfo, all_responses),
+        }
+        
+    elif data_type == 'range_slider':
+        data = {
+            'range_slider_data': get_range_slider_data(formInfo, all_responses),
+        }
+        
+    elif data_type == 'final_scores':
+        data = {
+            'final_scores': calculate_final_scores(request, code),
+        }
+        
+    else:
+        return JsonResponse({'error': 'Invalid data type'}, status=400)
+    
+    # Сохраняем результат в кэш на 5 минут
+    cache.set(cache_key, data, 300)
+    
+    return JsonResponse(data)
+
+def get_filtered_responses_queryset(request, formInfo):
+    """Получение отфильтрованного queryset ответов"""
+    selected_city = request.GET.get('cities')
+    selected_gender = request.GET.get('gender')
+    age_min = request.GET.get('age_min')
+    age_max = request.GET.get('age_max')
+    selected_med_region = request.GET.get('med_region')
+    selected_med_center = request.GET.get('med_center')
+    selected_med_group = request.GET.get('med_group')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    
+    all_responses = Responses.objects.filter(response_to=formInfo).select_related(
+        'responder'
+    ).prefetch_related(
+        'response',
+        'response__answer_to',
+        'response__answer_to__choices'
+    )
+    
+    filters = Q()
+    if selected_city:
+        filters &= Q(responder_city=selected_city)
+    if selected_gender:
+        filters &= Q(responder_gender=selected_gender)
+    if age_min:
+        filters &= Q(responder_age__gte=int(age_min))
+    if age_max:
+        filters &= Q(responder_age__lte=int(age_max))
+    if selected_med_group:
+        med_centers = RegionMedCenter.objects.filter(group_id=selected_med_group).values_list('med_center', flat=True)
+        filters &= Q(responder_med__in=med_centers)
+    if selected_med_region:
+        med_centers = RegionMedCenter.objects.filter(region=selected_med_region).values_list('med_center', flat=True)
+        filters &= Q(responder_med__in=med_centers)
+    if selected_med_center:
+        filters &= Q(responder_med=selected_med_center)
+    if date_from:
+        filters &= Q(createdAt__gte=date_from)
+    if date_to:
+        date_to = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+        filters &= Q(createdAt__lt=date_to)
+        
+    return all_responses.filter(filters)

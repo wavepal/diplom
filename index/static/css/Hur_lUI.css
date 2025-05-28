@@ -1,12 +1,12 @@
-@import url("https://fonts.googleapis.com/css?family=Roboto+Condensed");
-@import url("https://fonts.googleapis.com/css?family=Poppins");
-@import url("https://fonts.googleapis.com/css?family=Montserrat");
-@import url("https://fonts.googleapis.com/css?family=Times+New+Roman");
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Jost:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
 body{
 	overflow-x: hidden;
 	margin: 0;
 	padding: 0;
-	font-family: "Roboto Condensed", "Poppins","Arial";
+	font-family: "Inter", sans-serif;
 }
 
 .center{
@@ -87,7 +87,7 @@ body{
 }
 
 body {
-	background-color: #0D0D11;
+	background-color: #FEFEFE;
 	color: #FFF;
 }
 
@@ -127,7 +127,7 @@ body {
 	text-decoration: none;
 	font-size: 1rem;
 	color: black;
-	font-family: "Roboto", sans-serif;
+	font-family: "Jost", sans-serif;
 }
 .btn-hover:hover{
 	box-shadow: 5px 2px 8px;
@@ -154,13 +154,13 @@ body {
 .box-title, .heading-title{
 	font-weight: bold;
 	text-align: center;
-	font-family: "Montserrat";
+	font-family: "Jost", sans-serif;
 	padding: 2px 5px;
 	border-bottom: 0.5px solid #e6e6e6; 
 }
 
 .box-text{
-	font-family: "Roboto Condensed";
+	font-family: "Inter", sans-serif;
 }
 
 .box-shadow{
@@ -168,7 +168,7 @@ body {
 }
 
 .form-label, .text-label{
-	font-family: "Poppins", "Arial";
+	font-family: "Jost", sans-serif;
 	margin: 10px 0;
 }
 
@@ -321,23 +321,39 @@ td{padding: 8px;}
 @media only screen and (min-width: 768px) {
 	.container {
 		width: 750px;
+		padding-right: 5px;
+		padding-left: 5px;
+		margin-right: auto;
+		margin-left: auto;
 	}
 }
 @media only screen and (min-width: 992px) {
 	.container {
 		width: 970px;
+		padding-right: 8px;
+		padding-left: 8px;
+		margin-right: auto;
+		margin-left: auto;
 	}
 }
 @media only screen and (min-width: 1200px) {
 	.container {
 		width: 1170px;
+		padding-right: 12px;
+		padding-left: 12px;
+		margin-right: auto;
+		margin-left: auto;
 	}
-	.form-navigation{
-		margin: auto;
+	.form-navigation {
+		margin: 5px auto;
 		font-family: "Google Sans";
 		position: absolute;
 		top: 3.5%;
 		left: 50%;
 		transform: translate(-50%, -50%);
 	}
+}
+
+code, pre {
+    font-family: 'JetBrains Mono', monospace;
 }

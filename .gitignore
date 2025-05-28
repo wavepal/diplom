@@ -53,3 +53,14 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local 
+
+# Migrations
+migrations/
+
+*.pyc
+__pycache__/
+get-pip.py
+
+# Static files
+/index/static/icons/
+/index/static/images/

@@ -10,27 +10,27 @@
 
 /* Заголовки и основные элементы */
 .mc-section-title {
-    font-family: "Google Sans", sans-serif;
+    font-family: "Jost", sans-serif;
     font-size: 1.5rem;
     font-weight: 500;
-    color: #ffffff;
+    color: #000000;
     margin: 30px 0 20px;
     padding-bottom: 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .mc-page-title {
-    font-family: "Google Sans", sans-serif;
+    font-family: "Jost", sans-serif;
     font-size: 1.8rem;
     font-weight: 500;
-    color: #ffffff;
+    color: #000000;
     margin: 15px 0 5px;
 }
 
 .mc-group-description {
-    font-family: "Product Sans", sans-serif;
+    font-family: "Inter", sans-serif;
     font-size: 1rem;
-    color: #aaa;
+    color: #383C40;
     margin-bottom: 25px;
 }
 
@@ -38,8 +38,8 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    color: #4D5AFF;
-    font-family: "Google Sans", sans-serif;
+    color: #1669FF;
+    font-family: "Jost", sans-serif;
     font-size: 0.95rem;
     text-decoration: none;
     padding: 8px 12px;
@@ -50,7 +50,7 @@
 
 .mc-back-button:hover {
     background-color: rgba(101, 99, 238, 0.1);
-    color: #7a78ff;
+    color: #104CB8;
     text-decoration: none;
 }
 
@@ -61,8 +61,8 @@
 .mc-empty-message {
     text-align: center;
     padding: 50px 0;
-    color: #aaa;
-    font-family: "Product Sans", sans-serif;
+    color: #383C40;
+    font-family: "Inter", sans-serif;
     font-size: 1.1rem;
 }
 
@@ -75,19 +75,20 @@
 }
 
 .mc-center-box {
-    background-color: #1E1E25;
+    background-color: #DADBDE;
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     transition: all 0.3s ease;
     cursor: pointer;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid transparent;
 }
 
 .mc-center-box:hover {
     transform: translateY(-4px);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-    border-color: rgba(101, 99, 238, 0.5);
+    border-color: #1669FF;
+    background-color: #F7F8FA;
 }
 
 .mc-box-content {
@@ -102,10 +103,10 @@
 }
 
 .mc-title-text {
-    font-family: "Google Sans", sans-serif;
+    font-family: "Jost", sans-serif;
     font-size: 1.2rem;
     font-weight: 500;
-    color: #fff;
+    color: #000000;
     margin: 0;
     padding-right: 10px;
 }
@@ -123,22 +124,22 @@
 }
 
 .mc-info-item i {
-    color: #4D5AFF;
+    color: #1669FF;
     font-size: 1rem;
     margin-top: 2px;
 }
 
 .mc-info-item span {
-    font-family: "Product Sans", sans-serif;
+    font-family: "Inter", sans-serif;
     font-size: 0.95rem;
-    color: #ddd;
+    color: #383C40;
     line-height: 1.4;
 }
 
 /* Группы медцентров */
 .mc-group-box {
-    background-color: #21212c;
-    border-left: 3px solid #4D5AFF;
+    background-color: #DADBDE;
+    border-left: 3px solid #1669FF;
 }
 
 /* Кнопки действий */
@@ -150,7 +151,7 @@
 .mc-action-btn {
     background-color: transparent;
     border: none;
-    color: #aaa;
+    color: #383C40;
     font-size: 1rem;
     width: 30px;
     height: 30px;
@@ -163,8 +164,8 @@
 }
 
 .mc-action-btn:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: #fff;
+    background-color: rgba(101, 99, 238, 0.1);
+    color: #1669FF;
 }
 
 .mc-action-btn:last-child:hover {
@@ -189,7 +190,7 @@
 
 .mc-add-card i {
     font-size: 2rem;
-    color: #4D5AFF;
+    color: #1669FF;
     margin-bottom: 15px;
 }
 
@@ -197,7 +198,7 @@
     margin: 0;
     font-family: "Google Sans", sans-serif;
     font-size: 1rem;
-    color: #4D5AFF;
+    color: #1669FF;
 }
 
 .mc-add-card:hover {
@@ -208,7 +209,7 @@
 
 /* Стили форм */
 .mc-form-container {
-    background-color: #1E1E25;
+    background-color: #DADBDE;
     border-radius: 12px;
     padding: 30px;
     max-width: 700px;
@@ -217,13 +218,13 @@
 }
 
 .mc-form-title {
-    font-family: "Google Sans", sans-serif;
+    font-family: "Jost", sans-serif;
     font-size: 1.5rem;
     font-weight: 500;
-    color: #fff;
+    color: #000000;
     margin-bottom: 25px;
     padding-bottom: 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .mc-form-group {
@@ -232,27 +233,27 @@
 
 .mc-form-group label {
     display: block;
-    font-family: "Google Sans", sans-serif;
+    font-family: "Jost", sans-serif;
     font-size: 0.95rem;
-    color: #ddd;
+    color: #383C40;
     margin-bottom: 8px;
 }
 
 .mc-form-control {
     width: 85%;
     padding: 10px 12px;
-    background-color: #2a2b30;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background-color: #F7F8FA;
+    border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 8px;
-    color: #fff;
-    font-family: "Product Sans", sans-serif;
+    color: #000000;
+    font-family: "Inter", sans-serif;
     font-size: 0.85rem;
     transition: all 0.3s ease;
 }
 
 .mc-form-control:focus {
     outline: none;
-    border-color: #4D5AFF;
+    border-color: #1669FF;
     box-shadow: 0 0 0 2px rgba(101, 99, 238, 0.2);
 }
 
@@ -268,29 +269,29 @@ textarea.mc-form-control {
 }
 
 .mc-submit-button {
-    background-color: #4D5AFF;
+    background-color: #1669FF;
     color: white;
     border: none;
     padding: 10px 25px;
     border-radius: 8px;
-    font-family: "Google Sans", sans-serif;
+    font-family: "Jost", sans-serif;
     font-size: 1rem;
     cursor: pointer;
     transition: all 0.3s ease;
 }
 
 .mc-submit-button:hover {
-    background-color: #3D47CA;
+    background-color: #104CB8;
     transform: translateY(-2px);
 }
 
 .mc-cancel-button {
-    background-color: transparent;
-    color: #aaa;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background-color: #4a4a4a;
+    color: #fff;
+    border: none;
     padding: 10px 25px;
     border-radius: 8px;
-    font-family: "Google Sans", sans-serif;
+    font-family: "Jost", sans-serif;
     font-size: 1rem;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -301,9 +302,10 @@ textarea.mc-form-control {
 }
 
 .mc-cancel-button:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: #666666;
     color: #fff;
     text-decoration: none;
+    transform: translateY(-2px);
 }
 
 /* Адаптивный дизайн */

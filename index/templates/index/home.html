@@ -3,23 +3,10 @@
 
 {% block body %}
 <link rel="stylesheet" href="{% static 'css/home.css' %}">
-<div class="container-fluid main-container">
-    <div class="topnav">
-        <div class="nav-padding">
-            <span class="nav-ham" id="nav-ham" onclick="toggleSidebar()">&#9776;</span>
-            <a href="{% url 'index' %}" title="Формы">
-                <img src="{% static 'Icon/site-icon.png' %}" alt="Medical Forms Icon" class="navbar-icon form-icon">
-            </a>
-            <span class="nav-text" title="Формы"><a href="{% url 'index' %}" class="nav-link">Medical Forms</a></span>
-            <a href="{% url 'logout' %}">
-                <img src="{% static 'Icon/logout.png' %}" alt="Logout Icon" class="navbar-icon float-right logout-icon" title="Выйти">
-            </a>
-        </div>
-    </div>
-
-    <div class="container main-content" onclick="closeSidebar()">
+<div class="container-fluid">
+    <div class="container">
         <div class="active-forms-section">
-            <h2 class="section-title">Доступные формы</h2>
+            <h2 class="home-title">Доступные формы</h2>
             
             {% if active_forms %}
                 <div class="forms-grid">

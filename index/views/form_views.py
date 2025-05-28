@@ -11,6 +11,8 @@ from django.shortcuts import render
 from datetime import datetime
 from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime, timedelta
+from django.utils import timezone
+import pytz
 
 def update_score(request):
     choice_id = request.POST.get('choice_id')
@@ -71,7 +73,7 @@ def edit_form(request, code):
         
     med_centers = RegionMedCenter.objects.all().order_by('region', 'med_center')
     
-    return render(request, "index/form.html", {
+    return render(request, "index/form/edit_form.html", {
         "code": code,
         "form": formInfo,
         "med_centers": med_centers
@@ -121,7 +123,7 @@ def form_share(request, code):
         return HttpResponseRedirect(reverse("404"))
     else:
         formInfo = formInfo[0]
-    return render(request, "index/form_share.html", {"form": formInfo})
+    return render(request, "index/form/form_share.html", {"form": formInfo})
 
 def form_settings(request, code):
     if not request.user.is_authenticated:
@@ -131,7 +133,7 @@ def form_settings(request, code):
         return HttpResponseRedirect(reverse("404"))
     else:
         formInfo = formInfo[0] 
-    return render(request, "index/form_settings.html", {"form": formInfo})
+    return render(request, "index/form/form_settings.html", {"form": formInfo})
 
 def form_colors(request, code):
     if not request.user.is_authenticated:
@@ -141,7 +143,7 @@ def form_colors(request, code):
         return HttpResponseRedirect(reverse("404"))
     else:
         formInfo = formInfo[0]
-    return render(request, "index/form_colors.html", {"form": formInfo})
+    return render(request, "index/form/form_colors.html", {"form": formInfo})
 
 def edit_bg_color(request, code):
     if not request.user.is_authenticated:
@@ -530,7 +532,7 @@ def score(request, code):
     if not formInfo.is_quiz:
         return HttpResponseRedirect(reverse("edit_form", args = [code]))
     else:
-        return render(request, "index/score.html", {
+        return render(request, "index/form/score.html", {
             "form": formInfo
         })
 
@@ -626,7 +628,7 @@ def view_form(request, code):
         
     med_centers = RegionMedCenter.objects.all().order_by('region', 'med_center')
     
-    return render(request, "index/view_form.html", {
+    return render(request, "index/form/view_form.html", {
         "form": formInfo,
         "med_centers": med_centers
     })
@@ -659,7 +661,7 @@ def submit_form(request, code):
         if formInfo.limit_ip:
             existing_response = Responses.objects.filter(response_to=formInfo, responder_ip=client_ip).order_by('-createdAt').first()
             if existing_response and datetime.now() - existing_response.createdAt < timedelta(hours=24):
-                return render(request, "index/form_response.html", {
+                return render(request, "index/form/form_response.html", {
                     "form": formInfo,
                     "code": code,
                     "message": "Вы уже отправили ответ на эту форму в последние 24 часа."
@@ -668,7 +670,7 @@ def submit_form(request, code):
         if formInfo.submit_limit:
             existing_response = Responses.objects.filter(response_to=formInfo, responder=request.user).order_by('-createdAt').first()
             if existing_response and timezone.now() - existing_response.createdAt < timedelta(hours=24):
-                return render(request, "index/form_response.html", {
+                return render(request, "index/form/form_response.html", {
                     "form": formInfo,
                     "code": code,
                     "message": "Вы уже отправили ответ на эту форму в последние 24 часа."
@@ -710,7 +712,9 @@ def submit_form(request, code):
                     submit_time = datetime.strptime(custom_submit_time, '%H:%M').time()
                     custom_datetime = datetime.combine(submit_date, submit_time)
                     tz = pytz.timezone('Asia/Yekaterinburg')
-                    response.createdAt = tz.localize(custom_datetime)
+                    # Заменяем прямую локализацию на более безопасный метод
+                    aware_datetime = timezone.make_aware(custom_datetime, timezone=tz)
+                    response.createdAt = aware_datetime
                 except (ValueError, TypeError):
                     response.createdAt = timezone.now()
             else:
@@ -764,7 +768,7 @@ def submit_form(request, code):
 
             response.save()
         
-        return render(request, "index/form_response.html", {
+        return render(request, "index/form/form_response.html", {
             "form": formInfo,
             "code": code
         })
@@ -773,24 +777,13 @@ def form_list_view(request):
     if not request.user.is_authenticated:
         return HttpResponseRedirect(reverse("login"))
 
-    # Руководители автоматически перенаправляются на страницу ответов
-    if request.user.is_manager():
-        forms = Form.objects.filter(is_active=True).first()
-        if forms:
-            return HttpResponseRedirect(reverse("responses", args=[forms.code]))
-        return HttpResponseRedirect(reverse("403"))
-
-    # Только админы и тренеры могут видеть список форм
-    if not (request.user.is_admin() or request.user.is_trainer()):
-        return HttpResponseRedirect(reverse("403"))
-
     if request.method == 'POST':
         selected_forms = request.POST.getlist('selected_forms[]')
         if selected_forms and request.user.is_admin():  # Только админы могут удалять формы
             Form.objects.filter(id__in=selected_forms).delete()
 
     forms = Form.objects.all()
-    return render(request, 'index/form_list.html', {'forms': forms})
+    return render(request, 'index/form/form_list.html', {'forms': forms})
 
 @csrf_exempt  # Добавляем декоратор, если его нет
 def update_max_value(request, question_id):

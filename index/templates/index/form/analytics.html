@@ -6,10 +6,121 @@
 {% load calculate_score %}
 {% load calculate_penalty %}
 {% load divide %}
+{% load get_item %}
 {% block title %}{{form.title}} - Medical Forms{% endblock %}
 {% block script %}
-<script src="{% static 'index/responses_sc.js' %}" defer></script>
+<script src="{% static 'index/analytics.js' %}" defer></script>
 <script src="{% static 'lib/cookie.min.js' %}"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Функция для загрузки данных аналитики
+    function loadAnalyticsData(dataType) {
+        const loadingIndicator = document.getElementById(`loading-${dataType}`);
+        if (loadingIndicator) loadingIndicator.style.display = 'block';
+
+        const url = new URL(`{% url 'load_analytics_data' code=form.code %}`);
+        url.searchParams.append('data_type', dataType);
+        
+        // Добавляем все параметры фильтрации
+        const filterParams = new FormData(document.getElementById('filter-form'));
+        for (let [key, value] of filterParams.entries()) {
+            url.searchParams.append(key, value);
+        }
+
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (loadingIndicator) loadingIndicator.style.display = 'none';
+                
+                // Обновляем соответствующий раздел на странице
+                updateSection(dataType, data);
+            })
+            .catch(error => {
+                console.error('Error loading data:', error);
+                if (loadingIndicator) {
+                    loadingIndicator.textContent = 'Ошибка загрузки данных';
+                    loadingIndicator.style.color = 'red';
+                }
+            });
+    }
+
+    // Функция для обновления разделов страницы
+    function updateSection(dataType, data) {
+        switch(dataType) {
+            case 'summary':
+                updateSummarySection(data);
+                break;
+            case 'averages':
+                updateAveragesSection(data);
+                break;
+            case 'med_stats':
+                updateMedStatsSection(data);
+                break;
+            case 'range_slider':
+                updateRangeSliderSection(data);
+                break;
+            case 'final_scores':
+                updateFinalScoresSection(data);
+                break;
+        }
+    }
+
+    // Инициализация наблюдателя за видимостью секций
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const section = entry.target;
+                const dataType = section.getAttribute('data-analytics-type');
+                if (dataType && !section.hasAttribute('data-loaded')) {
+                    loadAnalyticsData(dataType);
+                    section.setAttribute('data-loaded', 'true');
+                }
+            }
+        });
+    }, {
+        root: null,
+        rootMargin: '50px',
+        threshold: 0.1
+    });
+
+    // Наблюдаем за секциями аналитики
+    document.querySelectorAll('[data-analytics-type]').forEach(section => {
+        observer.observe(section);
+    });
+
+    // Обработчик изменения фильтров
+    document.getElementById('filter-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Сбрасываем флаги загрузки данных
+        document.querySelectorAll('[data-analytics-type]').forEach(section => {
+            section.removeAttribute('data-loaded');
+        });
+        
+        // Перезагружаем видимые секции
+        document.querySelectorAll('[data-analytics-type]').forEach(section => {
+            if (isElementInViewport(section)) {
+                const dataType = section.getAttribute('data-analytics-type');
+                loadAnalyticsData(dataType);
+                section.setAttribute('data-loaded', 'true');
+            }
+        });
+    });
+});
+
+// Вспомогательная функция для проверки видимости элемента
+function isElementInViewport(el) {
+    const rect = el.getBoundingClientRect();
+    return (
+        rect.top >= 0 &&
+        rect.left >= 0 &&
+        rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+        rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+    );
+}
+</script>
 {% endblock %}
 {% block body %}
 <div class="container-fluid">
@@ -26,39 +137,7 @@
             <form id="response-form">
                 {% csrf_token %}
                 <ul class="modal-content" style="margin: 10px; padding: 0 25px; max-height: 40vh; overflow-y: auto; overflow-x: hidden;">
-                    {% for i in responses %}
-                        <p>
-                            <input type="checkbox" name="response_ids" value="{{ i.id }}">
-                            {% if form.collect_email %}
-                                <a href="{% url 'response' form.code i.response_code %}" class="bl-link">
-                                    Ответ {{ user.email }}
-                                </a>
-                                {% if form.is_quiz %}
-                                    <span>{{ i|calculate_score:form }} / {{ form|calculate_total_score }}</span>
-                                {% endif %}
-                            {% else %}
-                                <a href="{% url 'response' form.code i.response_code %}" class="bl-link">
-                                    {% if user.is_authenticated %}
-                                    {% with profile_image=user.image_info.first %}
-                                        {% if profile_image and profile_image.image %}
-                                            <img id="profileImage" src="{{ profile_image.image.url }}" alt="Фото профиля" width="25" height="25" style="border-radius: 50%; vertical-align: middle;">
-                                        {% else %}
-                                            <img id="profileImage" src="{% static 'Icon\user.jpg' %}" alt="Фото профиля" width="25" height="25" style="border-radius: 50%; vertical-align: middle;">
-                                        {% endif %}
-                                    {% endwith %}
-                                    {% endif %}
-                                    {% if i.responder_username %}
-                                        Ответ {{ i.responder_username }}
-                                    {% else %}
-                                        Ответ {{ i.response_code }}
-                                    {% endif %}
-                                    {% if form.is_quiz %}
-                                        <span>- {{ i|calculate_score:form }} / {{ form|calculate_total_score }}</span>
-                                    {% endif %}
-                                </a>
-                            {% endif %}
-                        </p>
-                    {% endfor %}
+                    <!-- Responses will be loaded dynamically via JavaScript -->
                 </ul>
                 {% if request.user.is_superuser %}
                 <button type="button" class="btn btn-danger" id="delete-selected-responses">Удалить выделенные ответы</button>
@@ -71,9 +150,37 @@
         </div>
         <div class="margin-top-bottom box question-box table-settings">
             <h1 class="response-title">Фильтрация данных</h1>
+            
+            <div class="filter-container">
+                <div class="filter-tabs">
+                    <button class="filter-tab active" data-tab="location">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>Локация</span>
+                    </button>
+                    <button class="filter-tab" data-tab="demographics">
+                        <i class="fas fa-users"></i>
+                        <span>Демография</span>
+                    </button>
+                    <button class="filter-tab" data-tab="answers">
+                        <i class="fas fa-clipboard-list"></i>
+                        <span>Ответы</span>
+                    </button>
+                    <button class="filter-tab" data-tab="dates">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Даты</span>
+                    </button>
+                </div>
+                
             <form id="filter-form" method="GET">
-                <p>
-                    <label for="cities">Регион пользователя:</label>
+                    <div class="filter-content active" id="location-tab">
+                        <div class="filter-grid">
+                            <div class="filter-card">
+                                <div class="filter-card-header">
+                                    <i class="fas fa-user-circle"></i>
+                                    <h3>Регион пользователя</h3>
+                                </div>
+                                <div class="filter-card-body">
+                                    <div class="filter-field">
                     <select class="filter-select" id="cities" name="cities">
                         <option value="">Все регионы</option>
                         {% for city_code, city_name in city_choices %}
@@ -82,10 +189,17 @@
                             </option>
                         {% endfor %}
                     </select>
-                </p>
-
-                <p>
-                    <label for="med_region">Регион медцентра:</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="filter-card">
+                                <div class="filter-card-header">
+                                    <i class="fas fa-hospital"></i>
+                                    <h3>Регион медцентра</h3>
+                                </div>
+                                <div class="filter-card-body">
+                                    <div class="filter-field">
                     <select class="filter-select" id="med_region" name="med_region">
                         <option value="">Все регионы</option>
                         {% for city_code, city_name in city_choices %}
@@ -94,10 +208,17 @@
                             </option>
                         {% endfor %}
                     </select>
-                </p>
-
-                <p>
-                    <label for="med_group">Группа медцентров:</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="filter-card">
+                                <div class="filter-card-header">
+                                    <i class="fas fa-layer-group"></i>
+                                    <h3>Группа медцентров</h3>
+                                </div>
+                                <div class="filter-card-body">
+                                    <div class="filter-field">
                     <select class="filter-select" id="med_group" name="med_group">
                         <option value="">Все группы</option>
                         {% for group in med_center_groups %}
@@ -106,10 +227,17 @@
                             </option>
                         {% endfor %}
                     </select>
-                </p>
-
-                <p>
-                    <label for="med_center">Медцентр:</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="filter-card">
+                                <div class="filter-card-header">
+                                    <i class="fas fa-clinic-medical"></i>
+                                    <h3>Медцентр</h3>
+                                </div>
+                                <div class="filter-card-body">
+                                    <div class="filter-field">
                     <select class="filter-select" id="med_center" name="med_center">
                         <option value="">Все медцентры</option>
                         {% for med_center in med_centers %}
@@ -118,30 +246,90 @@
                             </option>
                         {% endfor %}
                     </select>
-                </p>
-
-                <p>
-                    <label for="gender">Пол:</label>
-                    <select class="filter-select" id="gender" name="gender">
-                        <option value="">Все</option>
-                        <option value="M" {% if request.GET.gender == 'M' %}selected{% endif %}>Мужской</option>
-                        <option value="F" {% if request.GET.gender == 'F' %}selected{% endif %}>Женский</option>
-                        <option value="O" {% if request.GET.gender == 'O' %}selected{% endif %}>Другой</option>
-                    </select>
-                </p>
-                <p>
-                    <label for="age_min">Возраст от:</label>
-                    <input type="number" id="age_min" name="age_min" min="0" max="100" value="{{ request.GET.age_min }}">
-                    <label for="age_max">до:</label>
-                    <input type="number" id="age_max" name="age_max" min="0" max="100" value="{{ request.GET.age_max }}">
-                </p>
-                
-                <!-- Добавляем сохранение выбранных значений для вопросов -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-content" id="demographics-tab">
+                        <div class="filter-grid">
+                            <div class="filter-card">
+                                <div class="filter-card-header">
+                                    <i class="fas fa-venus-mars"></i>
+                                    <h3>Пол</h3>
+                                </div>
+                                <div class="filter-card-body">
+                                    <div class="filter-field">
+                                        <div class="gender-options">
+                                            <label class="gender-option">
+                                                <input type="radio" name="gender" value="" {% if not request.GET.gender %}checked{% endif %}>
+                                                <span class="gender-icon"><i class="fas fa-users"></i></span>
+                                                <span>Все</span>
+                                            </label>
+                                            <label class="gender-option">
+                                                <input type="radio" name="gender" value="M" {% if request.GET.gender == 'M' %}checked{% endif %}>
+                                                <span class="gender-icon"><i class="fas fa-male"></i></span>
+                                                <span>Мужской</span>
+                                            </label>
+                                            <label class="gender-option">
+                                                <input type="radio" name="gender" value="F" {% if request.GET.gender == 'F' %}checked{% endif %}>
+                                                <span class="gender-icon"><i class="fas fa-female"></i></span>
+                                                <span>Женский</span>
+                                            </label>
+                                            <!-- <label class="gender-option">
+                                                <input type="radio" name="gender" value="O" {% if request.GET.gender == 'O' %}checked{% endif %}>
+                                                <span class="gender-icon"><i class="fas fa-transgender"></i></span>
+                                                <span>Другой</span>
+                                            </label> -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="filter-card">
+                                <div class="filter-card-header">
+                                    <i class="fas fa-birthday-cake"></i>
+                                    <h3>Возраст</h3>
+                                </div>
+                                <div class="filter-card-body">
+                                    <div class="filter-field age-range">
+                                        <div class="age-slider-container">
+                                            <div class="age-inputs">
+                                                <div class="age-input-group">
+                                                    <label for="age_min">От</label>
+                                                    <input type="number" id="age_min" name="age_min" min="0" max="100" value="{{ request.GET.age_min }}" class="age-input">
+                                                </div>
+                                                <div class="age-input-group">
+                                                    <label for="age_max">До</label>
+                                                    <input type="number" id="age_max" name="age_max" min="0" max="100" value="{{ request.GET.age_max }}" class="age-input">
+                                                </div>
+                                            </div>
+                                            <div class="age-presets">
+                                                <button type="button" class="age-preset" data-min="18" data-max="30">18-30</button>
+                                                <button type="button" class="age-preset" data-min="31" data-max="45">31-45</button>
+                                                <button type="button" class="age-preset" data-min="46" data-max="60">46-60</button>
+                                                <button type="button" class="age-preset" data-min="61" data-max="100">61+</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-content" id="answers-tab">
+                        <div class="filter-grid answers-grid">
                 {% for question in form.questions.all %}
                     {% if question.question_type == "multiple choice" or question.question_type == "checkbox" %}
-                        <p>
-                            <label for="question-{{ question.id }}">Варианты ответа</label>
-                            <select class="filter-choice-select" id="question-{{ question.id }}" name="question-{{ question.id }}" multiple>
+                                    <div class="filter-card">
+                                        <div class="filter-card-header">
+                                            <i class="fas fa-question-circle"></i>
+                                            <h3>{{ question.question }}</h3>
+                                        </div>
+                                        <div class="filter-card-body">
+                                            <div class="filter-field">
+                                                <select class="filter-select choices-select" id="question-{{ question.id }}" name="question-{{ question.id }}" multiple>
                                 <option value="">Все</option>
                                 {% for choice in question.choices.all %}
                                     <option value="{{ choice.id }}" 
@@ -152,55 +340,161 @@
                                     </option>
                                 {% endfor %}
                             </select>
-                        </p>
+                                            </div>
+                                        </div>
+                                    </div>
                     {% endif %}
                 {% endfor %}
-                
-                <!-- Добавляем фильтр по датам -->
-                <p>
-                    <label for="date_from">Период с:</label>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-content" id="dates-tab">
+                        <div class="filter-grid">
+                            <div class="filter-card date-filter-card">
+                                <div class="filter-card-header">
+                                    <i class="fas fa-calendar-day"></i>
+                                    <h3>Период</h3>
+                                </div>
+                                <div class="filter-card-body">
+                                    <div class="date-range-container">
+                                        <div class="date-field">
+                                            <label for="date_from">Начало периода</label>
+                                            <div class="date-input-wrapper">
+                                                <i class="fas fa-calendar-alt"></i>
                     <input type="date" id="date_from" name="date_from" 
                            value="{{ request.GET.date_from }}" 
                            class="filter-date">
-                    
-                    <label for="date_to">по:</label>
+                                            </div>
+                                        </div>
+                                        <div class="date-field">
+                                            <label for="date_to">Конец периода</label>
+                                            <div class="date-input-wrapper">
+                                                <i class="fas fa-calendar-alt"></i>
                     <input type="date" id="date_to" name="date_to" 
                            value="{{ request.GET.date_to }}"
                            class="filter-date">
-                </p>
-
-                <div class="filter-buttons">
-                    <button type="submit" class="btn send-form-btn">Применить фильтр</button>
-                    <button type="button" id="reset-filters" class="btn btn-danger">Сбросить фильтры</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="date-presets">
+                                        <button type="button" class="date-preset" data-days="7">Последние 7 дней</button>
+                                        <button type="button" class="date-preset" data-days="30">Последние 30 дней</button>
+                                        <button type="button" class="date-preset" data-days="90">Последние 3 месяца</button>
+                                        <button type="button" class="date-preset" data-days="365">Последний год</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-actions">
+                        <button type="submit" class="filter-apply-btn">
+                            <i class="fas fa-filter"></i>
+                            <span>Применить фильтры</span>
+                        </button>
+                        <button type="button" id="reset-filters" class="filter-reset-btn">
+                            <i class="fas fa-times"></i>
+                            <span>Сбросить все</span>
+                        </button>
                 </div>
             </form>
+            </div>
         </div>
         <script>
-            document.getElementById('reset-filters').addEventListener('click', function() {
-                // Сброс всех полей фильтрации
-                document.getElementById('cities').value = '';
-                document.getElementById('med_region').value = '';
-                document.getElementById('med_group').value = '';
-                document.getElementById('med_center').value = '';
-                document.getElementById('gender').value = '';
-                document.getElementById('age_min').value = '';
-                document.getElementById('age_max').value = '';
+            document.addEventListener('DOMContentLoaded', function() {
+                // Tab switching
+                const tabs = document.querySelectorAll('.filter-tab');
+                tabs.forEach(tab => {
+                    tab.addEventListener('click', function() {
+                        // Remove active class from all tabs
+                        tabs.forEach(t => t.classList.remove('active'));
+                        // Add active class to clicked tab
+                        this.classList.add('active');
+                        
+                        // Hide all content sections
+                        document.querySelectorAll('.filter-content').forEach(content => {
+                            content.classList.remove('active');
+                        });
+                        
+                        // Show the selected content section
+                        const tabId = this.getAttribute('data-tab');
+                        document.getElementById(tabId + '-tab').classList.add('active');
+                    });
+                });
                 
-                // Добавляем сброс дат
+                // Age presets
+                document.querySelectorAll('.age-preset').forEach(preset => {
+                    preset.addEventListener('click', function() {
+                        const min = this.getAttribute('data-min');
+                        const max = this.getAttribute('data-max');
+                        
+                        document.getElementById('age_min').value = min;
+                        document.getElementById('age_max').value = max;
+                        
+                        // Highlight active preset
+                        document.querySelectorAll('.age-preset').forEach(p => p.classList.remove('active'));
+                        this.classList.add('active');
+                    });
+                });
+                
+                // Date presets
+                document.querySelectorAll('.date-preset').forEach(preset => {
+                    preset.addEventListener('click', function() {
+                        const days = parseInt(this.getAttribute('data-days'));
+                        
+                        // Calculate end date (today)
+                        const endDate = new Date();
+                        
+                        // Calculate start date
+                        const startDate = new Date();
+                        startDate.setDate(startDate.getDate() - days);
+                        
+                        // Format dates for input fields
+                        document.getElementById('date_from').value = formatDate(startDate);
+                        document.getElementById('date_to').value = formatDate(endDate);
+                        
+                        // Highlight active preset
+                        document.querySelectorAll('.date-preset').forEach(p => p.classList.remove('active'));
+                        this.classList.add('active');
+                    });
+                });
+                
+                // Format date as YYYY-MM-DD
+                function formatDate(date) {
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                }
+                
+                // Reset filters
+            document.getElementById('reset-filters').addEventListener('click', function() {
+                    // Reset all form fields
+                    document.getElementById('filter-form').reset();
+                    
+                    // Reset all select elements
+                    document.querySelectorAll('select').forEach(select => {
+                        select.value = '';
+                    });
+                    
+                    // Reset date fields
                 document.getElementById('date_from').value = '';
                 document.getElementById('date_to').value = '';
                 
-                // Сброс выбранных вариантов ответов
-                const questionSelects = document.querySelectorAll('select[name^="question-"]');
-                questionSelects.forEach(select => {
-                    select.value = '';
-                });
-                
-                // Отправка формы для обновления результатов
+                    // Reset age fields
+                    document.getElementById('age_min').value = '';
+                    document.getElementById('age_max').value = '';
+                    
+                    // Remove active classes from presets
+                    document.querySelectorAll('.age-preset, .date-preset').forEach(preset => {
+                        preset.classList.remove('active');
+                    });
+                    
+                    // Submit the form to update results
                 document.getElementById('filter-form').submit();
             });
 
-            // Добавляем валидацию дат
+                // Date validation
             document.getElementById('date_to').addEventListener('change', function() {
                 const dateFrom = document.getElementById('date_from').value;
                 const dateTo = this.value;
@@ -219,11 +513,24 @@
                     alert('Дата начала периода не может быть позже даты окончания');
                     this.value = dateTo;
                 }
+                });
             });
         </script>
         <div class="margin-top-bottom box question-box">
             <h1 class="response-title">Таблица данных:</h1>
-            <div class="responses-table">
+            <div class="responses-table-controls">
+                <div class="table-zoom-controls">
+                    <button type="button" class="table-zoom-btn zoom-out" data-table="responsesTable">
+                        <i class="fas fa-search-minus"></i>
+                    </button>
+                    <span class="table-zoom-level" id="responsesTable-zoom">100%</span>
+                    <button type="button" class="table-zoom-btn zoom-in" data-table="responsesTable">
+                        <i class="fas fa-search-plus"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="responses-table" id="responsesTable-container">
+                <div class="table-scroll-indicator">Прокрутите для просмотра</div>
                 <table id="responsesTable">
                     <thead>
                         <tr>
@@ -241,7 +548,7 @@
                                             - {{ summary.question.score }} баллов
                                         {% endif %}
                                         </a>
-                                    <br></th>
+                                    </th>
                                 {% endif %}
                             {% endfor %}
                             {% if form.is_quiz %}
@@ -250,88 +557,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for response in responses %}
-                        <tr data-response-id="{{ response.id }}">
-                            <td class="column-user">{% if response.responder_username %}{{ response.responder_username }}{% else %}Аноним{% endif %}</td>
-                            <td class="column-city">
-                                {% if response.responder_city %}
-                                    {{ response.get_city_display }}
-                                {% else %}
-                                    N/A
-                                {% endif %}
-                            </td>
-                            <td class="column-age">
-                                {% if response.responder_age %}
-                                    {{ response.responder_age }}
-                                {% else %}
-                                    N/A
-                                {% endif %}
-                            </td>
-                            <td class="column-gender">
-                                {% if response.responder_gender %}
-                                    {{ response.get_gender_display }}
-                                {% else %}
-                                    N/A
-                                {% endif %}
-                            </td>
-                            <td class="column-med">
-                                {% if response.responder_med %}
-                                    {{ response.responder_med }}
-                                {% else %}
-                                    N/A
-                                {% endif %}
-                            </td>
-                            <td class="column-created-at">{{ response.createdAt|date:"d.m.Y H:i" }}</td>
-                            {% for summary in responsesSummary %}
-                                {% if summary.question.question_type != "title" %}
-                                    <td class="column-question-{{ summary.question.id }} text-table" data-max-value="{{ summary.question.max_value }}">
-                                        {% with answer=response_answers|get_item:response.id %}
-                                            {% if summary.question.question_type == "paragraph" %}
-                                                <p class="long-answer">{{ answer|get_item:summary.question.id|default:"N/A"|linebreaksbr }}</p>
-                                            {% elif summary.question.question_type == "short" %}
-                                                <p class="short-answer">{{ answer|get_item:summary.question.id|default:"N/A" }}</p>
-                                            {% elif summary.question.question_type == "range slider" %}
-                                                <a class="score-title range-slider-value" data-raw-value="{{ answer|get_item:summary.question.id }}">{{ answer|get_item:summary.question.id }}</a>
-                                            {% elif summary.question.question_type == "multiple choice" %}
-                                                {% with selected_choice=answer|get_item:summary.question.id %}
-                                                    {% for choice in summary.question.choices.all %}
-                                                        {% if selected_choice == choice.choice %}
-                                                            <a class="score-title">{{ choice.choice }}
-                                                                {% if form.is_quiz %}
-                                                                    <span class="txtClr column-choice-score">({{ choice.scores }} баллов)</span>
-                                                                {% endif %}
-                                                            </a>
-                                                        {% endif %}
-                                                    {% endfor %}
-                                                {% endwith %}
-                                            {% elif summary.question.question_type == "checkbox" %}
-                                                {% with selected_choices=answer|get_item:summary.question.id %}
-                                                    {% if selected_choices != "N/A" %}
-                                                        <ul>
-                                                            {% for choice in summary.question.choices.all %}
-                                                                {% if choice.choice in selected_choices %}
-                                                                    <li>{{ choice.choice }}
-                                                                        {% if form.is_quiz %}
-                                                                            <span>({{ choice.scores }} баллов)</span>
-                                                                        {% endif %}
-                                                                    </li>
-                                                                {% endif %}
-                                                            {% endfor %}
-                                                        </ul>
-                                                    {% else %}
-                                                        N/A
-                                                    {% endif %}
-                                                {% endwith %}
-                                            {% endif %}
-                                        {% endwith %}
-                                    </td>
-                                {% endif %}
-                            {% endfor %}
-                            {% if form.is_quiz %}
-                                <td class="column-total-score column-total-score-percentage">{{ response|calculate_score:form }} / {{ form|calculate_total_score }}</td>
-                            {% endif %}
-                        </tr>
-                        {% endfor %}
+                        <!-- Rows will be loaded dynamically -->
                     </tbody>
                 </table>
             </div>
@@ -341,9 +567,9 @@
                     <legend>Данные пользователя</legend>
                     <div class="field-content">
                         <label><input type="checkbox" class="toggle-column" data-column="user" checked> Пользователь</label>
-                        <label><input type="checkbox" class="toggle-column" data-column="city"> Город</label>
-                        <label><input type="checkbox" class="toggle-column" data-column="age"> Возраст</label>
-                        <label><input type="checkbox" class="toggle-column" data-column="gender"> Пол</label>
+                        <label><input type="checkbox" class="toggle-column" data-column="city" checked> Город</label>
+                        <label><input type="checkbox" class="toggle-column" data-column="age" checked> Возраст</label>
+                        <label><input type="checkbox" class="toggle-column" data-column="gender" checked> Пол</label>
                         <label><input type="checkbox" class="toggle-column" data-column="created-at" checked> Дата проверки</label>
                         <label><input type="checkbox" class="toggle-column" data-column="med" checked> Медцентр</label>
                     </div>
@@ -355,7 +581,7 @@
                         <label><input type="checkbox" class="toggle-column" data-column="choice-score" checked> Баллы по вариантам</label>
                         <label><input type="checkbox" class="toggle-column" data-column="question-score" checked> Баллы за правильный ответ</label>
                         <label><input type="checkbox" class="toggle-column" data-column="total-score" checked> Итоговый балл</label>
-                        <label><input type="checkbox" class="total-score-percentage" checked> Процентное соотношение</label>
+                        <label><input type="checkbox" class="total-score-percentage"> Процентное соотношение</label>
                     </div>
                 </fieldset>
                 {% endif %}
@@ -367,7 +593,7 @@
                                 <label><input type="checkbox" class="toggle-column" data-column="question-{{ summary.question.id }}" checked> {{ summary.question.question }}</label>
                             {% endif %}
                         {% endfor %}
-                        <label><p><input type="checkbox" class="range-slider-percentage" checked> Процентное соотношение</p></label>
+                        <label><p><input type="checkbox" class="range-slider-percentage"> Процентное соотношение</p></label>
                     </div>
                 </fieldset>
             </form>
@@ -432,9 +658,10 @@
                 });
             </script>
             <script>
-                document.addEventListener('DOMContentLoaded', function() {
+                document.addEventListener('DOMContentLoaded', function () {
                     const totalScoreElements = document.querySelectorAll('.column-total-score-percentage');
-                    const maxScore = {{ form|calculate_total_score }};
+                    // Store the Django template value in a JavaScript variable
+                    const maxScore = {% if form|calculate_total_score %}{{ form|calculate_total_score }}{% else %}100{% endif %};
 
                     totalScoreElements.forEach(function (element) {
                         const scoreText = element.textContent.split('/')[0].trim();
@@ -450,7 +677,9 @@
                         }
                     });
 
-                    document.querySelector('.total-score-percentage').addEventListener('change', function () {
+                    const totalScorePercentageElement = document.querySelector('.total-score-percentage');
+                    if (totalScorePercentageElement) {
+                        totalScorePercentageElement.addEventListener('change', function () {
                         const isPercentage = this.checked;
                         totalScoreElements.forEach(function (element) {
                             let score = parseFloat(element.dataset.rawScore);
@@ -469,6 +698,7 @@
                             }
                         });
                     });
+                    }
                 });
 
                 function getColorBasedOnPercentage(percentage) {
@@ -527,7 +757,19 @@
         </div>
         <div class="margin-top-bottom box question-box">
             <h2 class="response-title">Средние оценки и количество ответов по медцентрам</h2>
-            <div class="responses-table">
+            <div class="responses-table-controls">
+                <div class="table-zoom-controls">
+                    <button type="button" class="table-zoom-btn zoom-out" data-table="medCenterTable">
+                        <i class="fas fa-search-minus"></i>
+                    </button>
+                    <span class="table-zoom-level" id="medCenterTable-zoom">100%</span>
+                    <button type="button" class="table-zoom-btn zoom-in" data-table="medCenterTable">
+                        <i class="fas fa-search-plus"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="responses-table" id="medCenterTable-container">
+                <div class="table-scroll-indicator">Прокрутите для просмотра</div>
                 <table id="medCenterTable">
                     <thead>
                         <tr>
@@ -547,51 +789,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for med_center, scores in average_scores_sorted %}
-                        <tr class="med-center-row" data-med-center="{{ med_center }}">
-                            <td>{{ med_center }}</td>
-                            {% for question in form.questions.all %}
-                                {% if question.question_type == "range slider" %}
-                                    <td class="column-{{ question.id }}" data-max-value="{{ question.max_value }}">
-                                        <span class="score-title average-slider-value" data-raw-value="{{ scores.scores|get_item:question.id|default:"N/A" }}">
-                                            {% with value=scores.scores|get_item:question.id %}
-                                                {% if value is None or value == '' %}
-                                                    N/A
-                                                {% elif value == 0 %}
-                                                    0
-                                                {% else %}
-                                                    {{ value }}
-                                                {% endif %}
-                                            {% endwith %}                                        
-                                        </span>
-                                    </td>
-                                {% endif %}
-                            {% endfor %}
-                            {% with stats=med_center_stats|get_item:med_center %}
-                                {% for question in form.questions.all %}
-                                    {% if question.is_negative %}
-                                        <td class="column-answ-{{ question.id }}">
-                                            {{ stats.questions|get_dict_item:question.id|default:0 }}
-                                        </td>
-                                    {% endif %}
-                                {% endfor %}
-                                <td class="total-score">
-                                    {% with total_score=scores.total_score %}
-                                        {% if total_score == None %}
-                                            <a class="score-title" style="color: black;">N/A</a>
-                                        {% elif total_score >= 80 %}
-                                            <a class="score-title" style="color: #00b300;">{{ total_score }}</a>
-                                        {% elif total_score >= 50 %}
-                                            <a class="score-title" style="color: #ffcc00;">{{ total_score }}</a>
-                                        {% else %}
-                                            <a class="score-title" style="color: #ff3300;">{{ total_score }}</a>
-                                        {% endif %}
-                                    {% endwith %}
-                                </td>
-                                <td class="score-title column-total-responses">{{ stats.total_responses }}</td>
-                            {% endwith %}
-                        </tr>
-                        {% endfor %}
+                        <!-- Rows will be loaded dynamically -->
                     </tbody>                
                 </table>
             </div>
@@ -681,6 +879,13 @@
                             });
                         });
                     });
+
+                    // Trigger initial percentage conversion
+                    const averageSliderPercentageCheckbox = document.querySelector('.average-slider-percentage');
+                    if (averageSliderPercentageCheckbox && averageSliderPercentageCheckbox.checked) {
+                        const event = new Event('change');
+                        averageSliderPercentageCheckbox.dispatchEvent(event);
+                    }
                 });
 
                 function updateExportCombinedForm() {
@@ -771,7 +976,19 @@
         </div>
         <div class="margin-top-bottom box question-box">
         <h2 class="response-title">Итоговые оценки медцентров</h2>
-            <div class="responses-table">
+            <div class="responses-table-controls">
+                <div class="table-zoom-controls">
+                    <button type="button" class="table-zoom-btn zoom-out" data-table="totalScoresTable">
+                        <i class="fas fa-search-minus"></i>
+                    </button>
+                    <span class="table-zoom-level" id="totalScoresTable-zoom">100%</span>
+                    <button type="button" class="table-zoom-btn zoom-in" data-table="totalScoresTable">
+                        <i class="fas fa-search-plus"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="responses-table" id="totalScoresTable-container">
+                <div class="table-scroll-indicator">Прокрутите для просмотра</div>
                 <table id="totalScoresTable">
                     <thead>
                         <tr>
@@ -785,46 +1002,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for med_center, data in final_scores.items %}
-                        <tr>
-                            <td>{{ med_center }}</td>
-                            {% for form in active_forms %}
-                                <td class="form-score">
-                                    {% with score=data.forms|get_item:form.title %}
-                                        {% if score >= 80 %}
-                                            <span class="score-title" style="color: #00b300;">{{ score|floatformat:2 }}</span>
-                                        {% elif score >= 50 %}
-                                            <span class="score-title" style="color: #ffcc00;">{{ score|floatformat:2 }}</span>
-                                        {% elif score > 0 %}
-                                            <span class="score-title" style="color: #ff3300;">{{ score|floatformat:2 }}</span>
-                                        {% else %}
-                                            <span class="score-title" style="color: black;">N/A</span>
-                                        {% endif %}
-                                    {% endwith %}
-                                </td>
-                            {% endfor %}
-                            <td><span class="score-title">{{ data.negative_count }}</span></td>
-                            <td>
-                                <span class="score-title" 
-                                      style="{% if data.negative_count == 0 %}color: #00b300;{% elif data.negative_count == 1 %}color: #80b300;{% elif data.negative_count == 2 %}color: #ffcc00;{% elif data.negative_count == 3 %}color: #ff9933;{% elif data.negative_count == 4 %}color: #ff3300;{% else %}color: #000000;{% endif %}">
-                                    {{ data.negative_percentage }}%
-                                </span>
-                            </td>
-                            <td class="final-score">
-                                {% with final_score=data.total_score %}
-                                    {% if final_score >= 80 %}
-                                        <span class="score-title" style="color: #00b300;">{{ final_score|floatformat:2 }}</span>
-                                    {% elif final_score >= 50 %}
-                                        <span class="score-title" style="color: #ffcc00;">{{ final_score|floatformat:2 }}</span>
-                                    {% elif final_score > 0 %}
-                                        <span class="score-title" style="color: #ff3300;">{{ final_score|floatformat:2 }}</span>
-                                    {% else %}
-                                        <span class="score-title" style="color: black;">N/A</span>
-                                    {% endif %}
-                                {% endwith %}
-                            </td>
-                        </tr>
-                        {% endfor %}
+                        <!-- Rows will be loaded dynamically -->
                     </tbody>
                 </table>
             </div>
@@ -839,6 +1017,13 @@
                 {% if r.question.question_type == 'checkbox' or r.question.question_type == 'multiple choice' %}
                     <div class="response-summary">
                         <h3 class="response-summary-title">{{r.question.question}}</h3>
+                        <div class="choice">
+                            <input type="checkbox" id="{{choice.id}}" disabled>
+                            <label for="{{choice.id}}">
+                                <input type="text" data-id="{{choice.id}}" class="edit-choice" value="{{choice.choice}}" {% if not request.user.is_superuser %}disabled{% endif %}>
+                            </label>
+                            <span class="remove-option" title="Удалить" data-id="{{choice.id}}">&times;</span>
+                        </div>
                         {% if r.answers|count > 0 or filteredResponsesSummary|get_property:r.question.question|count > 0 %}
                         <select class="question-type-select input-question-type" data-id="{{r.question.id}}" data-origin_type="{{r.question.question_type}}">
                             <option value="bar" {% if question.question_type == 'bar' %}selected{% endif %}>Столбцы</option>
@@ -847,233 +1032,68 @@
                             <option value="line" {% if question.question_type == 'line' %}selected{% endif %}>Линейная</option>
                             <option value="polarArea" {% if question.question_type == 'polarArea' %}selected{% endif %}>Полярная</option>
                         </select>
-                            <canvas id="myChart{{r.question.id}}" width="600" height="300"></canvas>
-                        <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.5.0/Chart.min.js"></script>
-                        <script>
-                            var ctx{{r.question.id}} = document.getElementById("myChart{{r.question.id}}").getContext("2d");
-                            var chartData{{r.question.id}} = {
-                                labels: [{% for i in filteredResponsesSummary|get_property:r.question.id %}"{{i}}",{% endfor %}],
-                                datasets: [{
-                                    label: '{{ r.question.question }}',
-                                    data: [{% for i in filteredResponsesSummary|get_property:r.question.id %}{{filteredResponsesSummary|get_property:r.question.id|get_property:i}},{% endfor %}],
-                                    backgroundColor: [{% for _ in filteredResponsesSummary|get_property:r.question.id %}"{{0|generate_color}}",{% endfor %}],
-                                    borderWidth: 1
-                                }]
-                            };
-                            var chart{{r.question.id}} = new Chart(ctx{{r.question.id}}, {
-                                type: 'bar',
-                                data: chartData{{r.question.id}},
-                                options: {
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    scales: {
-                                        yAxes: [{
-                                            ticks: {
-                                                beginAtZero: true,
-                                                stepSize: 1
-                                            }
-                                        }],
-                                        xAxes: [{
-                                            ticks: {
-                                                autoSkip: false
-                                            }
-                                        }]
-                                    },
-                                    legend: {
-                                        display: true,
-                                        position: 'top'
-                                    }
-                                }
-                            });
-                            document.querySelector('.question-type-select[data-id="{{r.question.id}}"]').addEventListener('change', function () {
-                                var selectedOption = this.value;
-                                chart{{r.question.id}}.destroy();
-                                chart{{r.question.id}} = new Chart(ctx{{r.question.id}}, {
-                                    type: selectedOption,
-                                    data: chartData{{r.question.id}},
-                                    options: {
-                                        responsive: true, 
-                                        maintainAspectRatio: false,
-                                    }
-                                });
-                            });
-                        </script>
+                            
+                            <div class="chart-container" 
+                                 id="chartContainer{{r.question.id}}" 
+                                 data-chart-type="question"
+                                 data-chart-data='{
+                                     "labels": [{% for i in filteredResponsesSummary|get_property:r.question.id %}"{{i}}",{% endfor %}],
+                                     "datasets": [{
+                                         "label": "{{ r.question.question }}",
+                                         "data": [{% for i in filteredResponsesSummary|get_property:r.question.id %}{{filteredResponsesSummary|get_property:r.question.id|get_property:i}},{% endfor %}],
+                                         "backgroundColor": [{% for _ in filteredResponsesSummary|get_property:r.question.id %}"{{0|generate_color}}",{% endfor %}],
+                                         "borderWidth": 1
+                                     }]
+                                 }'>
+                                <div class="loading-indicator">Загрузка данных...</div>
+                                <div class="error-message" style="display: none; color: red; text-align: center; padding: 20px;"></div>
+                                <canvas id="myChart{{r.question.id}}" width="600" height="300"></canvas>
+                            </div>
                         {% else %}
                         <blockquote><i>Нет ответов</i></blockquote>
                         {% endif %}
                     </div>
                     {% elif r.question.question_type == 'range slider' %}
                     <div class="response-summary">
-                        <h3 class="response-summary-title">{{ r.question.question }}</h3>
-                    
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 class="response-summary-title">{{ r.question.question }}</h3>
+                            {% with data=range_slider_data|get_item:r.question.id %}
+                            {% if r.answers|count > 0 or filteredResponsesSummary|get_property:r.question.question|count > 0 %}
+                                <button id="toggleChartBtn{{ r.question.id }}" class="toggle-chart-btn btn send-form-btn big-screen">Показать график</button>
+                            {% endif %}
+                            {% endwith %}
+                        </div>
+                        <div class="answers" data-id="{{ question.id }}">
+                            <input type="range" min="0" max="100" value="50" class="slider" disabled>
+                            <label for="input-max-value">
+                                <input type="number" id="input-max-value" value="{{ question.max_value }}" class="edit-choice" data-id="{{ question.id }}" placeholder="Макс. число" {% if not request.user.is_superuser %}disabled{% endif %}>
+                            </label>
+                        </div>
                         {% with data=range_slider_data|get_item:r.question.id %}
                         {% if r.answers|count > 0 or filteredResponsesSummary|get_property:r.question.question|count > 0 %}
-                            <button id="toggleChartBtn{{ r.question.id }}" class="toggle-chart-btn btn send-form-btn big-screen">Показать график</button>
-                    
-                            <div id="chartContainer{{ r.question.id }}" class="chart-container" style="display: none;">
+                            <div class="chart-container" 
+                                 id="chartContainer{{ r.question.id }}" 
+                                 data-chart-type="range-slider"
+                                 data-analytics-type="range_slider"
+                                 style="display: none;"
+                                 data-url="{% url 'load_analytics_data' code=form.code %}?data_type=range_slider">
+                                <div class="loading-indicator">Загрузка данных...</div>
+                                <div class="error-message" style="display: none; color: red; text-align: center; padding: 20px;"></div>
                                 <select class="input-question-type chart-filter-select" id="chartTypeSelect{{ r.question.id }}">
                                     <option value="line">Линейный</option>
                                     <option value="bar">Столбцы</option>
                                 </select>
+                                
                                 <select class="time-period-select input-time-period chart-filter-select" id="timePeriodSelect{{ r.question.id }}">
                                     <option value="12">12 месяцев</option>
                                     <option value="6" selected>6 месяцев</option>
                                     <option value="3">3 месяца</option>
                                     <option value="2">2 месяца</option>
-                                    <option value="1" style="display: none;">1 месяц</option>
+                                    <option value="1">1 месяц</option>
                                 </select>
                     
-                                <canvas id="combinedChart{{ r.question.id }}" width="600" height="300"></canvas>
+                                <canvas id="combinedChart{{ r.question.id }}" width="600" height="400"></canvas>
                             </div>
-                    
-                            <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.5.0/Chart.min.js"></script>
-                            <script>
-                                document.addEventListener('DOMContentLoaded', function () {
-                                    const toggleChartBtn = document.getElementById("toggleChartBtn{{ r.question.id }}");
-                                    const chartContainer = document.getElementById("chartContainer{{ r.question.id }}");
-                                    const chartTypeSelect = document.getElementById("chartTypeSelect{{ r.question.id }}");
-                                    const timePeriodSelect = document.getElementById("timePeriodSelect{{ r.question.id }}");
-                                    let chart = null;
-
-                                    toggleChartBtn.addEventListener('click', function () {
-                                        if (chartContainer.style.display === "none") {
-                                            chartContainer.style.display = "block";
-                                            toggleChartBtn.textContent = "Скрыть график";
-
-                                            if (!chart) {
-                                                const ctx = document.getElementById("combinedChart{{ r.question.id }}").getContext("2d");
-
-                                                const maxValue = {{ data.max_value }};
-                                                const roundValue = value => Math.round(value);
-
-                                                const lineChartData = {
-                                                    labels: [{% for month in data.months %}"{{ month }}"{% if not forloop.last %},{% endif %}{% endfor %}],
-                                                    datasets: [
-                                                        {% for center, averages in data.averages_by_center.items %}
-                                                        {
-                                                            label: '{{ center }}',
-                                                            data: [{% for avg in averages %}
-                                                                {% if avg %}
-                                                                    {{ avg|stringformat:".2f"|multiply:100|divide:data.max_value }}
-                                                                {% else %}
-                                                                    0
-                                                                {% endif %}
-                                                                {% if not forloop.last %},{% endif %}
-                                                            {% endfor %}],
-                                                            borderColor: '{{ forloop.counter0|generate_color }}',
-                                                            backgroundColor: 'rgba(0, 0, 0, 0)',
-                                                            borderWidth: 2,
-                                                            fill: false
-                                                        }{% if not forloop.last %},{% endif %}
-                                                        {% endfor %}
-                                                    ]
-                                                };
-
-                                                const barChartData = {
-                                                    labels: [{% for month in data.months %}"{{ month }}"{% if not forloop.last %},{% endif %}{% endfor %}],
-                                                    datasets: [
-                                                        {% for center, averages in data.averages_by_center.items %}
-                                                        {
-                                                            label: '{{ center }}',
-                                                            data: [{% for avg in averages %}
-                                                                {% if avg %}
-                                                                    {{ avg|stringformat:".2f"|multiply:100|divide:data.max_value }}
-                                                                {% else %}
-                                                                    0
-                                                                {% endif %}
-                                                                {% if not forloop.last %},{% endif %}
-                                                            {% endfor %}],
-                                                            backgroundColor: '{{ forloop.counter0|generate_color }}',
-                                                            borderWidth: 1
-                                                        }{% if not forloop.last %},{% endif %}
-                                                        {% endfor %}
-                                                    ]
-                                                };
-
-                                                const updateChart = (timePeriod) => {
-                                                    const filteredLabels = lineChartData.labels.slice(-timePeriod);
-                                                    const filteredLineDatasets = lineChartData.datasets.map(dataset => ({
-                                                        ...dataset,
-                                                        data: dataset.data.slice(-timePeriod)
-                                                    }));
-                                                    const filteredBarDatasets = barChartData.datasets.map(dataset => ({
-                                                        ...dataset,
-                                                        data: dataset.data.slice(-timePeriod)
-                                                    }));
-
-                                                    if (chart) {
-                                                        chart.destroy();
-                                                    }
-                                                    
-                                                    chart = new Chart(ctx, {
-                                                        type: chartTypeSelect.value,
-                                                        data: {
-                                                            labels: filteredLabels,
-                                                            datasets: chartTypeSelect.value === 'line' ? filteredLineDatasets : filteredBarDatasets
-                                                        },
-                                                        options: {
-                                                            responsive: true,
-                                                            maintainAspectRatio: false,
-                                                            scales: {
-                                                                yAxes: [{
-                                                                    ticks: {
-                                                                        beginAtZero: true,
-                                                                        max: 100,
-                                                                        callback: function(value) {
-                                                                            return value.toFixed(1) + '%';
-                                                                        }
-                                                                    }
-                                                                }],
-                                                                xAxes: [{
-                                                                    ticks: {
-                                                                        autoSkip: false
-                                                                    }
-                                                                }]
-                                                            },
-                                                            legend: {
-                                                                display: true,
-                                                                position: 'top'
-                                                            },
-                                                            tooltips: {
-                                                                callbacks: {
-                                                                    label: function(tooltipItem, data) {
-                                                                        return data.datasets[tooltipItem.datasetIndex].label + ': ' + tooltipItem.yLabel.toFixed(1) + '%';
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    });
-                                                };
-
-                                                const initialTimePeriod = parseInt(timePeriodSelect.value);
-                                                updateChart(initialTimePeriod);
-
-                                                timePeriodSelect.addEventListener('change', function () {
-                                                    const selectedTimePeriod = parseInt(timePeriodSelect.value);
-                                                    updateChart(selectedTimePeriod);
-                                                });
-
-                                                chartTypeSelect.addEventListener('change', function () {
-                                                    const selectedChartType = chartTypeSelect.value;
-                                                    const oneMonthOption = timePeriodSelect.querySelector('option[value="1"]');
-                                                    if (selectedChartType === 'bar') {
-                                                        oneMonthOption.style.display = 'block';
-                                                    } else {
-                                                        oneMonthOption.style.display = 'none';
-                                                        if (timePeriodSelect.value === '1') {
-                                                            timePeriodSelect.value = '2';
-                                                        }
-                                                    }
-                                                    updateChart(parseInt(timePeriodSelect.value));
-                                                });
-                                            }
-                                        } else {
-                                            chartContainer.style.display = "none";
-                                            toggleChartBtn.textContent = "Показать график";
-                                        }
-                                    });
-                                });
-                            </script>
                         {% else %}
                             <blockquote><i>Нет ответов</i></blockquote>
                         {% endif %}
@@ -1084,58 +1104,102 @@
         </div>
         <div class="margin-top-bottom box question-box">
             <h2 class="response-title">Графики итоговых оценок медцентров</h2>
-            <div class="chart-container">
-                <select class="question-type-select input-question-type" id="finalScoresChartType">
-                    <option value="bar">Столбцы</option>
-                    <option value="line">Линейный</option>
-                    <option value="radar">Радар</option>
-                    <option value="polarArea">Полярная область</option>
-                </select>
-                <canvas id="finalScoresChart" width="600" height="400"></canvas>
+            <div class="chart-container" id="finalScoresChartContainer" data-chart-type="final-scores" data-url="{% url 'load_final_scores_chart' code=form.code %}">
+                <div class="loading-indicator">Загрузка данных...</div>
+                <div class="error-message" style="display: none; color: red; text-align: center; padding: 20px;"></div>
+                <div class="chart-content" style="display: none;">
+                    <select class="question-type-select input-question-type" id="finalScoresChartType">
+                        <option value="bar">Столбцы</option>
+                        <option value="line">Линейный</option>
+                        <option value="radar">Радар</option>
+                        <option value="polarArea">Полярная область</option>
+                    </select>
+                    <canvas id="finalScoresChart" width="600" height="400"></canvas>
+                </div>
             </div>
-            <!-- Добавляем загрузку Chart.js перед скриптами -->
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js"></script>
+            
+            <h2 class="response-title mt-4">График влияния жалоб на итоговую оценку</h2>
+            <div class="chart-container" id="negativeImpactChartContainer" data-chart-type="negative-impact" data-url="{% url 'load_negative_impact_chart' code=form.code %}">
+                <div class="loading-indicator">Загрузка данных...</div>
+                <div class="error-message" style="display: none; color: red; text-align: center; padding: 20px;"></div>
+                <div class="chart-content" style="display: none;">
+                    <canvas id="negativeImpactChart" width="600" height="400"></canvas>
+                </div>
+            </div>
+            
             <script>
-                // Ждем полной загрузки DOM и Chart.js
-                window.addEventListener('load', function() {
+                document.addEventListener('DOMContentLoaded', function() {
+                    const observerOptions = {
+                        root: null,
+                        rootMargin: '50px',
+                        threshold: 0.1
+                    };
+
+                    const chartInstances = new Map();
+
+                    const chartObserver = new IntersectionObserver((entries) => {
+                        entries.forEach(entry => {
+                            if (entry.isIntersecting) {
+                                const chartContainer = entry.target;
+                                const chartId = chartContainer.getAttribute('id');
+                                
+                                if (!chartInstances.has(chartId)) {
+                                    loadChartData(chartContainer);
+                                }
+                                
+                                chartObserver.unobserve(chartContainer);
+                            }
+                        });
+                    }, observerOptions);
+
+                    async function loadChartData(container) {
+                        const url = container.getAttribute('data-url');
+                        const loadingIndicator = container.querySelector('.loading-indicator');
+                        const errorMessage = container.querySelector('.error-message');
+                        const chartContent = container.querySelector('.chart-content');
+
+                        try {
+                            loadingIndicator.style.display = 'block';
+                            errorMessage.style.display = 'none';
+                            chartContent.style.display = 'none';
+
+                            const response = await fetch(url);
+                            if (!response.ok) {
+                                throw new Error(response.statusText || 'Ошибка загрузки данных');
+                            }
+                            const data = await response.json();
+                            
+                            if (data.error) {
+                                throw new Error(data.error);
+                            }
+
+                            loadingIndicator.style.display = 'none';
+                            chartContent.style.display = 'block';
+                            initializeChart(container, data);
+                        } catch (error) {
+                            console.error('Error loading chart data:', error);
+                            loadingIndicator.style.display = 'none';
+                            errorMessage.style.display = 'block';
+                            errorMessage.textContent = error.message || 'Произошла ошибка при загрузке данных';
+                        }
+                    }
+
+                    function initializeFinalScoresChart(container, data) {
                     const chartTypeSelect = document.getElementById('finalScoresChartType');
                     const ctx = document.getElementById('finalScoresChart');
     
-                    if (!ctx || !chartTypeSelect) {
-                        console.error('Required elements not found');
-                        return;
-                    }
+                        if (!ctx || !chartTypeSelect) return;
     
                     let finalScoresChart;
-    
-                    const chartData = {
-                        labels: [{% for med_center, data in final_scores.items %}"{{ med_center }}",{% endfor %}],
-                        datasets: [
-                            {% for form in active_forms %}
-                            {
-                                label: "{{ form.title }}",
-                                data: [
-                                    {% for med_center, data in final_scores.items %}
-                                        {{ data.forms|get_item:form.title|default:0 }},
-                                    {% endfor %}
-                                ],
-                                backgroundColor: "{{ forloop.counter0|generate_color }}",
-                                borderColor: "{{ forloop.counter0|generate_color }}",
-                                borderWidth: 2,
-                                fill: false
-                            }{% if not forloop.last %},{% endif %}
-                            {% endfor %}
-                        ]
-                    };
     
                     const createChart = (type) => {
                         if (finalScoresChart) {
                             finalScoresChart.destroy();
                         }
     
-                        finalScoresChart = new Chart(ctx.getContext('2d'), {
+                            finalScoresChart = new Chart(ctx, {
                             type: type,
-                            data: chartData,
+                                data: data,
                             options: {
                                 responsive: true,
                                 maintainAspectRatio: false,
@@ -1161,56 +1225,20 @@
                         });
                     };
     
-                    // Создаем начальный график
                     createChart('bar');
     
-                    // Обработчик изменения типа графика
                     chartTypeSelect.addEventListener('change', function() {
                         createChart(this.value);
                     });
-                });
-            </script>
-    
-            <h2 class="response-title mt-4">График влияния жалоб на итоговую оценку</h2>
-            <div class="chart-container">
-                <canvas id="negativeImpactChart" width="600" height="400"></canvas>
-            </div>
-            <script>
-                // Ждем полной загрузки DOM и Chart.js
-                window.addEventListener('load', function() {
-                    const ctx = document.getElementById('negativeImpactChart');
-    
-                    if (!ctx) {
-                        console.error('Negative impact chart canvas not found');
-                        return;
+
+                        return finalScoresChart;
                     }
-    
-                    const data = {
-                        labels: [{% for med_center, data in final_scores.items %}"{{ med_center }}",{% endfor %}],
-                        datasets: [
-                            {
-                                label: 'Итоговая оценка',
-                                data: [{% for med_center, data in final_scores.items %}{{ data.total_score }},{% endfor %}],
-                                backgroundColor: '#4CAF50',
-                                borderColor: '#4CAF50',
-                                borderWidth: 2,
-                                yAxisID: 'y-axis-1',
-                                order: 2
-                            },
-                            {
-                                label: 'Количество жалоб',
-                                data: [{% for med_center, data in final_scores.items %}{{ data.negative_count }},{% endfor %}],
-                                backgroundColor: '#FF3030',
-                                borderColor: '#FF3030',
-                                borderWidth: 2,
-                                type: 'line',
-                                yAxisID: 'y-axis-2',
-                                order: 1
-                            }
-                        ]
-                    };
-    
-                    new Chart(ctx.getContext('2d'), {
+
+                    function initializeNegativeImpactChart(container, data) {
+                        const ctx = document.getElementById('negativeImpactChart');
+                        if (!ctx) return;
+
+                        const chart = new Chart(ctx, {
                         type: 'bar',
                         data: data,
                         options: {
@@ -1262,6 +1290,31 @@
                                 }
                             }
                         }
+                        });
+
+                        return chart;
+                    }
+
+                    function initializeChart(container, data) {
+                        const chartType = container.getAttribute('data-chart-type');
+                        let chart;
+
+                        switch (chartType) {
+                            case 'final-scores':
+                                chart = initializeFinalScoresChart(container, data);
+                                break;
+                            case 'negative-impact':
+                                chart = initializeNegativeImpactChart(container, data);
+                                break;
+                        }
+
+                        if (chart) {
+                            chartInstances.set(container.id, chart);
+                        }
+                    }
+
+                    document.querySelectorAll('#finalScoresChartContainer, #negativeImpactChartContainer').forEach(container => {
+                        chartObserver.observe(container);
                     });
                 });
             </script>
@@ -1472,5 +1525,115 @@
             });
         });
     });
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize table zoom functionality
+        initializeTableZoom();
+        
+        // Initialize scroll indicators
+        initializeScrollIndicators();
+    });
+    
+    function initializeTableZoom() {
+        // Get all zoom buttons
+        const zoomInButtons = document.querySelectorAll('.zoom-in');
+        const zoomOutButtons = document.querySelectorAll('.zoom-out');
+        
+        // Set initial zoom levels
+        const zoomLevels = {
+            'responsesTable': 100,
+            'medCenterTable': 100,
+            'totalScoresTable': 100
+        };
+        
+        // Set initial zoom class
+        document.querySelectorAll('.responses-table').forEach(table => {
+            table.classList.add('zoom-100');
+        });
+        
+        // Add event listeners for zoom in buttons
+        zoomInButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const tableId = this.getAttribute('data-table');
+                const tableContainer = document.getElementById(tableId + '-container');
+                const zoomLevelDisplay = document.getElementById(tableId + '-zoom');
+                
+                // Increase zoom level (max 150%)
+                if (zoomLevels[tableId] < 150) {
+                    // Remove current zoom class
+                    tableContainer.classList.remove(`zoom-${zoomLevels[tableId]}`);
+                    
+                    // Increase zoom level
+                    zoomLevels[tableId] += 15;
+                    if (zoomLevels[tableId] > 150) zoomLevels[tableId] = 150;
+                    
+                    // Update zoom
+                    updateTableZoom(tableContainer, zoomLevelDisplay, zoomLevels[tableId]);
+                }
+            });
+        });
+        
+        // Add event listeners for zoom out buttons
+        zoomOutButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const tableId = this.getAttribute('data-table');
+                const tableContainer = document.getElementById(tableId + '-container');
+                const zoomLevelDisplay = document.getElementById(tableId + '-zoom');
+                
+                // Decrease zoom level (min 70%)
+                if (zoomLevels[tableId] > 75) {
+                    // Remove current zoom class
+                    tableContainer.classList.remove(`zoom-${zoomLevels[tableId]}`);
+                    
+                    // Decrease zoom level
+                    zoomLevels[tableId] -= 15;
+                    if (zoomLevels[tableId] < 75) zoomLevels[tableId] = 75;
+                    
+                    // Update zoom
+                    updateTableZoom(tableContainer, zoomLevelDisplay, zoomLevels[tableId]);
+                }
+            });
+        });
+    }
+    
+    function updateTableZoom(tableContainer, zoomLevelDisplay, zoomLevel) {
+        // Update the zoom class
+        tableContainer.classList.add(`zoom-${zoomLevel}`);
+        
+        // Update the zoom level display
+        zoomLevelDisplay.textContent = zoomLevel + '%';
+    }
+    
+    function initializeScrollIndicators() {
+        const tableContainers = document.querySelectorAll('.responses-table');
+        
+        tableContainers.forEach(container => {
+            const indicator = container.querySelector('.table-scroll-indicator');
+            
+            // Check if horizontal scrolling is needed
+            function checkScroll() {
+                if (container.scrollWidth > container.clientWidth) {
+                    indicator.style.opacity = '1';
+                    
+                    // Hide indicator after 3 seconds
+                    setTimeout(() => {
+                        indicator.style.opacity = '0';
+                    }, 3000);
+                } else {
+                    indicator.style.opacity = '0';
+                }
+            }
+            
+            // Check on load and resize
+            checkScroll();
+            window.addEventListener('resize', checkScroll);
+            
+            // Hide indicator when scrolling
+            container.addEventListener('scroll', () => {
+                indicator.style.opacity = '0';
+        });
+    });
+    }
 </script>
 {% endblock %}

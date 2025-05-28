@@ -1,14 +1,58 @@
+@import url('https://fonts.googleapis.com/css2?family=Jost:wght@400;700&display=swap');
+
 .topnav {
     display: inline-block;
     vertical-align: top;
     width: 100vw;
+    background-color: #F7F8FA;
+    border-bottom: 2px solid #DADBDE;
+    position: fixed;
     top: 0;
     padding: 10px 10px 10px 0px;
+    z-index: 1000;
 }
 
 @media screen and (max-width: 768px) {
     .topnav {
-        padding: 0px 0px 0px 0px;
+        padding: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .topnav img {
+        margin-top: 10px;
+    }
+
+    .nav-padding {
+        padding-inline: 10px;
+    }
+
+    .navbar-icon {
+        max-height: 35px;
+        width: auto;
+    }
+
+    .float-right {
+        display: flex;
+        align-items: center;
+    }
+
+    .nav-link {
+        font-size: 100%;
+    }
+
+    .nav-link i {
+        font-size: 24px !important;
+    }
+
+    /* Увеличиваем область нажатия */
+    .nav-text a {
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 }
 
@@ -29,16 +73,20 @@
     position: relative;
     vertical-align: middle;
     margin-top: 0.75rem;
-    font-family: "Product Sans";
-    color: #FFFFFF;
+    font-family: 'Jost', sans-serif;
+    color: #000000;
     padding-left: 1rem;
+    text-transform: uppercase;
+    font-weight: 700;
 }
 
 .nav-link {
-    color: #FFFFFF;
+    color: #000000;
     text-decoration: none;
-    font-family: "Roboto Condensed";
+    font-family: 'Jost', sans-serif;
     font-size: 110%;
+    font-weight: 700;
+    text-transform: uppercase;
     margin-inline: 10px;
 }
 
@@ -46,11 +94,44 @@
     float: left;
     position: relative;
     vertical-align: middle;
-    font-family: "Product Sans";
-    color: #FFFFFF;
+    font-family: 'Jost', sans-serif;
+    color: #000000;
     margin-top: 0.55rem;
     font-size: 120%;
     margin-inline: 5px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+@media screen and (max-width: 1280px) {
+    .nav-logo-text {
+        display: none;
+    }
+
+    .nav-text .nav-link {
+        font-size: 0;
+    }
+
+    .nav-text .nav-link i {
+        font-size: 20px;
+    }
+    .nav-link {
+        margin-inline: 0px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .nav-padding {
+        padding-inline: 5px;
+    }
+
+    .nav-text .nav-link i {
+        font-size: 22px !important;
+    }
+
+    .navbar-icon {
+        max-height: 48px;
+    }
 }
 
 .float-right {
@@ -59,7 +140,7 @@
 
 .nav-ham {
     float: left;
-    color: white;
+    color: #000000;
     font-size: 1.8rem;
     position: relative;
     vertical-align: middle;

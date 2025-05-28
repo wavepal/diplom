@@ -6,6 +6,17 @@ import string
 from django.http import JsonResponse
 from django.shortcuts import render
 
+def home_view(request):
+    if not request.user.is_authenticated:
+        return HttpResponseRedirect(reverse("login"))
+    if not (request.user.is_superuser or request.user.is_staff):
+        return HttpResponseRedirect(reverse("403"))
+        
+    active_forms = Form.objects.filter(is_active=True).order_by('-createdAt')
+    return render(request, "index/home.html", {
+        "active_forms": active_forms
+    })
+
 def index(request):
     if not request.user.is_authenticated:
         return HttpResponseRedirect(reverse("login"))
@@ -102,7 +113,7 @@ def customer_feedback_template(request):
         feedback.save()
         suggestion1 = Choices(choice="Вариант 1")
         suggestion1.save()
-        suggestion = Questions(question = "Предложения для улучш��ния", question_type="paragraph", required=False)
+        suggestion = Questions(question = "Предложения для улучшения", question_type="paragraph", required=False)
         suggestion.save()
         suggestion.choices.add(suggestion1)
         suggestion.save()
@@ -264,7 +275,7 @@ def social_survey_template(request):
 
         return JsonResponse({"message": "Успешно", "code": code})
     
-def contact_us(request):
-    if not request.user.is_authenticated:
-        return HttpResponseRedirect(reverse("login"))
-    return render(request, 'index/contactUs.html')
+# def contact_us(request):
+#     if not request.user.is_authenticated:
+#         return HttpResponseRedirect(reverse("login"))
+#     return render(request, 'index/contactUs.html')

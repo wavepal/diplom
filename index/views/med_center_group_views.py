@@ -22,7 +22,7 @@ def add_med_center_group(request):
             messages.success(request, "Группа медицинских центров успешно создана")
             return HttpResponseRedirect(reverse("manage_medical_centers"))
             
-    return render(request, "index/add_edit_med_center_group.html")
+    return render(request, "index/medcenters/add_edit_med_center_group.html")
 
 @login_required
 def edit_med_center_group(request, group_id):
@@ -42,7 +42,7 @@ def edit_med_center_group(request, group_id):
             messages.success(request, "Группа медицинских центров успешно обновлена")
             return HttpResponseRedirect(reverse("manage_medical_centers"))
             
-    return render(request, "index/add_edit_med_center_group.html", {
+    return render(request, "index/medcenters/add_edit_med_center_group.html", {
         "group": group
     })
 
@@ -64,7 +64,7 @@ def group_medical_centers(request, group_id):
                 messages.success(request, "Медицинский центр успешно удален")
                 return JsonResponse({'status': 'success'})
                 
-    return render(request, "index/group_medical_centers.html", {
+    return render(request, "index/medcenters/group_medical_centers.html", {
         "group": group,
         "med_centers": med_centers
     }) 

@@ -1,0 +1,45 @@
+{% load calculate_score %}
+{% load static %}
+{% load get_property %}
+{% load generate_color %}
+{% load count %}
+{% load calculate_penalty %}
+{% load divide %}
+<tr>
+    <td>{{ med_center }}</td>
+    {% for form in active_forms %}
+        <td class="form-score">
+            {% with score=data.forms|get_item:form.title %}
+                {% if score >= 80 %}
+                    <span class="score-title" style="color: #00b300;">{{ score|floatformat:2 }}</span>
+                {% elif score >= 50 %}
+                    <span class="score-title" style="color: #ffcc00;">{{ score|floatformat:2 }}</span>
+                {% elif score > 0 %}
+                    <span class="score-title" style="color: #ff3300;">{{ score|floatformat:2 }}</span>
+                {% else %}
+                    <span class="score-title" style="color: black;">N/A</span>
+                {% endif %}
+            {% endwith %}
+        </td>
+    {% endfor %}
+    <td><span class="score-title">{{ data.negative_count }}</span></td>
+    <td>
+        <span class="score-title" 
+              style="{% if data.negative_count == 0 %}color: #00b300;{% elif data.negative_count == 1 %}color: #80b300;{% elif data.negative_count == 2 %}color: #ffcc00;{% elif data.negative_count == 3 %}color: #ff9933;{% elif data.negative_count == 4 %}color: #ff3300;{% else %}color: #000000;{% endif %}">
+            {{ data.negative_percentage }}%
+        </span>
+    </td>
+    <td class="final-score">
+        {% with final_score=data.total_score %}
+            {% if final_score >= 80 %}
+                <span class="score-title" style="color: #00b300;">{{ final_score|floatformat:2 }}</span>
+            {% elif final_score >= 50 %}
+                <span class="score-title" style="color: #ffcc00;">{{ final_score|floatformat:2 }}</span>
+            {% elif final_score > 0 %}
+                <span class="score-title" style="color: #ff3300;">{{ final_score|floatformat:2 }}</span>
+            {% else %}
+                <span class="score-title" style="color: black;">N/A</span>
+            {% endif %}
+        {% endwith %}
+    </td>
+</tr> 

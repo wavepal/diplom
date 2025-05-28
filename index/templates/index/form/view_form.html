@@ -14,7 +14,7 @@
     <div class="container main-body">
         <span id="bg-color" style="display: none;">{{form.background_color}}</span>
         <span id="text-color" style="display: none;">{{form.text_color}}</span>
-        <form class="container  main-body" method="POST" action="{% url 'submit_form' form.code %}" autocomplete="off">
+        <form method="POST" action="{% url 'submit_form' form.code %}" autocomplete="off">
             {% csrf_token %}
             <div class="margin-top-bottom box question-box">
                 <div class="form-title-box">
@@ -127,11 +127,6 @@
                 <button type="button" class="clear-form-btn btn btn-submit float-right" onclick="clearForm()">Очистить форму</button>
             </div>
         </form>
-        {% if user == form.creator %}
-            <a href="{% url 'edit_form' form.code %}">
-                <img src="{% static 'Icon/write.png' %}" alt="Edit Question" title="Редактировать" class="edit-form-link">
-            </a>
-        {% endif %}
     </div>
 </div>
 <script>

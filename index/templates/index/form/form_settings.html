@@ -11,11 +11,11 @@
 <link rel="stylesheet" href="{% static 'css/settings.css' %}">
 <div class="container-fluid">
     <div class="container main-body">
-        {% with active_tab='questions' %}
+        {% with active_tab='settings' %}
             {% include 'index/includes/sidebar.html' %}
         {% endwith %}
         
-        <div class="settings-card">
+        <div class="margin-top-bottom question-box">
             <h1 class="settings-title">Настройки формы</h1>
             
             <form id="setting-form">

@@ -4,21 +4,24 @@
 <div class="topnav">
     <div class="nav-padding">
         <a href="{% url 'index' %}" title="Формы">
-            <img src="{% static 'Icon/index.svg' %}" alt="Med Forms Icon" class="navbar-icon form-icon">
+            <img src="{% static 'Icon/index.png' %}" alt="Med Forms Icon" class="navbar-icon form-icon">
         </a>
         <span class="nav-logo-text" title="Формы"><a href="{% url 'index' %}" class="nav-link">Medical Forms</a></span>
-        <div class="right-nav-items">
+        <div class="float-right">
             {% if request.user.is_superuser or request.user.is_staff %}
-            <span class="nav-text"><a href="{% url 'user_list' %}" class="nav-link"><i class="bi bi-people"></i> Пользователи</a></span>
+            <span class="nav-text"><a href="{% url 'home' %}" class="nav-link"><i class="bi bi-house-fill"></i> Формы</a></span>
+            {% endif %}
+            {% if request.user.is_superuser or request.user.is_staff %}
+            <span class="nav-text"><a href="{% url 'user_list' %}" class="nav-link"><i class="bi bi-people-fill"></i> Пользователи</a></span>
             {% endif %}
             {% if request.user.is_staff %}
-            <span class="nav-text"><a href="{% url 'manage_medical_centers' %}" class="nav-link"><i class="bi bi-hospital"></i> Медцентры</a></span>
+            <span class="nav-text"><a href="{% url 'manage_medical_centers' %}" class="nav-link"><i class="bi bi-hospital-fill"></i> Медцентры</a></span>
             {% endif %}
             {% if user.is_authenticated %}
-                <span class="nav-text"><a href="{% url 'edit_profile' %}" class="nav-link"><i class="bi bi-person"></i> Профиль</a></span>
-                <span class="nav-text"><a href="{% url 'logout' %}" class="nav-link"><i class="bi bi-box-arrow-right"></i> Выйти</a></span>
+                <span class="nav-text"><a href="{% url 'edit_profile' %}" class="nav-link"><i class="bi bi-person-fill"></i> Профиль</a></span>
+                <span class="nav-text"><a href="{% url 'logout' %}" class="nav-link"><i class="bi bi-door-open-fill"></i> Выйти</a></span>
             {% else %}
-                <span class="nav-text"><a href="{% url 'login' %}" class="nav-link"><i class="bi bi-box-arrow-in-right"></i> Войти</a></span>
+                <span class="nav-text"><a href="{% url 'login' %}" class="nav-link"><i class="bi bi-box-arrow-in-right-fill"></i> Войти</a></span>
             {% endif %}
         </div>
     </div>

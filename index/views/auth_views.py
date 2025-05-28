@@ -18,11 +18,11 @@ def login_view(request):
             login(request, user)
             return HttpResponseRedirect(reverse('index'))
         else:
-            return render(request, "index/loginregister.html", {
+            return render(request, "registration/loginregister.html", {
                 "message": "Неверное имя пользователя или пароль.",
                 "city_choices": UserCity.CITY_CHOICES  # Добавляем city_choices
             })
-    return render(request, "index/loginregister.html", {
+    return render(request, "registration/loginregister.html", {
         "city_choices": UserCity.CITY_CHOICES  # Добавляем city_choices
     })
 
@@ -39,20 +39,20 @@ def register(request):
         med_center = request.POST.get("med_center")
 
         if not re.match(r'^[a-zA-Z0-9]+$', username):
-            return render(request, "index/loginregister.html", {
+            return render(request, "registration/loginregister.html", {
                 "message": "Имя пользователя может содержать только латинские буквы и цифры.",
                 "city_choices": UserCity.CITY_CHOICES
             })
 
         error_message = validate_password(password, confirmation)
         if error_message:
-            return render(request, "index/loginregister.html", {
+            return render(request, "registration/loginregister.html", {
                 "message": error_message,
                 "city_choices": UserCity.CITY_CHOICES
             })
 
         if User.objects.filter(email=email).exists():
-            return render(request, "index/loginregister.html", {
+            return render(request, "registration/loginregister.html", {
                 "message": "Email уже занят.",
                 "city_choices": UserCity.CITY_CHOICES
             })
@@ -69,13 +69,13 @@ def register(request):
             login(request, user)
             return HttpResponseRedirect(reverse('index'))
         except IntegrityError:
-            return render(request, "index/loginregister.html", {
+            return render(request, "registration/loginregister.html", {
                 "message": "Имя пользователя уже занято",
                 "city_choices": UserCity.CITY_CHOICES
             })
     
     # Для GET-запроса передаем список городов
-    return render(request, "index/loginregister.html", {
+    return render(request, "registration/loginregister.html", {
         'city_choices': UserCity.CITY_CHOICES,
     })
 

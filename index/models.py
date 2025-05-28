@@ -187,7 +187,7 @@ class Form(models.Model):
     title = models.CharField(max_length=200)
     description = models.CharField(max_length=10000, blank=True)
     creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name="creator")
-    background_color = models.CharField(max_length=20, default="#0D0D11")
+    background_color = models.CharField(max_length=20, default="#FEFEFE")
     text_color = models.CharField(max_length=20, default="#272124")
     collect_email = models.BooleanField(default=False)
     authenticated_responder = models.BooleanField(default=False)
@@ -207,23 +207,31 @@ class Form(models.Model):
         return self.creator == user
 
 class Responses(models.Model):
-    response_code = models.CharField(max_length=20)
-    response_to = models.ForeignKey(Form, on_delete=models.CASCADE, related_name="response_to")
+    response_code = models.CharField(max_length=20, db_index=True)
+    response_to = models.ForeignKey(Form, on_delete=models.CASCADE, related_name="response_to", db_index=True)
     responder_ip = models.CharField(max_length=30)
-    responder = models.ForeignKey(User, on_delete=models.CASCADE, related_name="responder", blank=True, null=True)
+    responder = models.ForeignKey(User, on_delete=models.CASCADE, related_name="responder", blank=True, null=True, db_index=True)
     responder_email = models.EmailField(blank=True)
     authenticated_responder = models.BooleanField(default=False)
     response = models.ManyToManyField(Answer, related_name="response")
     
-    # Добавляем новые поля для статических данных
-    responder_gender = models.CharField(max_length=1, blank=True, null=True)
+    # Добавляем новые поля для статических данных с индексами
+    responder_gender = models.CharField(max_length=1, blank=True, null=True, db_index=True)
     responder_birth_date = models.DateField(blank=True, null=True)
-    responder_age = models.IntegerField(blank=True, null=True)
-    responder_city = models.CharField(max_length=50, blank=True, null=True)
-    responder_med = models.CharField(max_length=50, blank=True, null=True)
+    responder_age = models.IntegerField(blank=True, null=True, db_index=True)
+    responder_city = models.CharField(max_length=50, blank=True, null=True, db_index=True)
+    responder_med = models.CharField(max_length=50, blank=True, null=True, db_index=True)
     responder_username = models.CharField(max_length=150, blank=True, null=True)
     
-    createdAt = models.DateTimeField(default=timezone.now)
+    createdAt = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['response_to', 'responder_med']),
+            models.Index(fields=['response_to', 'responder_city']),
+            models.Index(fields=['response_to', 'responder_gender']),
+            models.Index(fields=['response_to', 'createdAt']),
+        ]
 
     def save(self, *args, **kwargs):
         if self.response_to.authenticated_responder:
