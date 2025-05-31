@@ -46,22 +46,27 @@
     .form-check-input {
         width: 18px;
         height: 18px;
-        margin-top: 3px;
         margin-right: 12px;
         accent-color: #1669FF;
         cursor: pointer;
     }
-
+    .settings-box {
+        background-color: #FFF;
+        transition: all 0.3s ease;
+        border: 1px solid #dadce0;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        padding: 16px;
+        position: relative;}
     .form-check-label {
         font-family: "Inter", sans-serif;
         font-size: 0.95rem;
         color: #4a4a4a;
-        cursor: pointer;
+        margin-top: 3px;
     }
 
     .form-check-input:disabled + .form-check-label {
         color: #999;
-        cursor: not-allowed;
     }
 
     .confirmation-message {

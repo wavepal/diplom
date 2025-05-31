@@ -709,7 +709,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         <div class="drag-handle">⋮⋮</div>
                         <input type="text" data-id="${result["question"].id}" class="question-title edit-on-click input-question" value="${result["question"].question}">
                         <select class="question-type-select input-question-type" data-id="${result["question"].id}" data-origin_type="${result["question"].question_type}">
-                            <option value="title" ${result["question"].question_type === "title" ? "selected" : ""}>Заголовок</option>
+                            // <option value="title" ${result["question"].question_type === "title" ? "selected" : ""}>Заголовок</option>
                             <option value="short" ${result["question"].question_type === "short" ? "selected" : ""}>Строка</option>
                             <option value="paragraph" ${result["question"].question_type === "paragraph" ? "selected" : ""}>Абзац</option>
                             <option value="multiple choice" ${result["question"].question_type === "multiple choice" ? "selected" : ""}>Один вариант</option>
@@ -1012,7 +1012,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="drag-handle">⋮⋮</div>
                 <input type="text" data-id="${result.question.id}" class="question-title edit-on-click input-question" value="${result.question.question}">
                 <select class="question-type-select input-question-type" data-id="${result.question.id}" data-origin_type="${result.question.question_type}">
-                    <option value="title" ${result.question.question_type === "title" ? "selected" : ""}>Заголовок</option>
+                    // <option value="title" ${result.question.question_type === "title" ? "selected" : ""}>Заголовок</option>
                     <option value="short" ${result.question.question_type === "short" ? "selected" : ""}>Строка</option>
                     <option value="paragraph" ${result.question.question_type === "paragraph" ? "selected" : ""}>Абзац</option>
                     <option value="multiple choice" ${result.question.question_type === "multiple choice" ? "selected" : ""}>Один вариант</option>

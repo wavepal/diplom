@@ -8,20 +8,22 @@
 <script src="{% static 'lib/cookie.min.js' %}"></script>
 {% endblock %}
 {% block body %}
+<span id="bg-color" style="display: none;">{{form.background_color}}</span>
+<link rel="stylesheet" href="{% static 'css/settings.css' %}">
 <div class="container-fluid">
     <div class="container main-body">
         {% with active_tab='share' %}
             {% include 'index/includes/sidebar.html' %}
         {% endwith %}
         <div class="margin-top-bottom question-box">
-            <h1 class="modal-title txt-clr">Поделиться формой</h1>
-            <div class="modal-division">
-                <h4 class="modal-subtitle txt-clr">Ссылка:</h4>
+            <h1 class="settings-title txt-clr">Поделиться формой</h1>
+            <div class="settings-section">
+                <h4 class="settings-section-title txt-clr">Ссылка:</h4>
                 <input type="url" class="form-control" id="copy-url" value="http://{{request.get_host}}/form/{{form.code}}/viewform">
             </div>
             <button class="btn btn-submit" copy-btn>Копировать</button>
-            <div class="modal-division">
-                <h4 class="modal-subtitle txt-clr">Код:</h4>
+            <div class="settings-section">
+                <h4 class="settings-section-title txt-clr">Код:</h4>
                 <input type="text" class="form-control" id="copy-code-url" value="{{form.code}}">
             </div>
             <button class="btn btn-submit" copy-code-btn>Копировать</button>

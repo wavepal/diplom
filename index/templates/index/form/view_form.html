@@ -32,8 +32,7 @@
             {% for question in form.questions.all %}
             <div class="margin-top-bottom box question-box">
                 <h1 class="question-title txtClr">{{question.question}} {% if question.required %}<span class="require-star">*</span>{% endif %}</h1>
-                {% if question.question_type == "title" %}
-                {% elif question.question_type == "short" %}
+                {% if question.question_type == "short" %}
                     <input type="text" name="{{question.id}}" maxlength="64" class="short-answer" placeholder="Ваш ответ" {% if question.required %} required {% endif %}>
                 {% elif question.question_type == "range slider" %}
                     <input type="range" id="slider" 
@@ -47,7 +46,7 @@
                         name="{{question.id}}" 
                         max="{% if question.max_value < 0 %}0{% else %}{{ question.max_value }}{% endif %}" 
                         value="" 
-                        class="edit-choice" 
+                        class="edit-number" 
                         {% if question.required %} required {% endif %}>
                     <label>из {% if question.max_value < 0 %}0{% else %}{{ question.max_value }}{% endif %}</label>
                 {% elif question.question_type == "paragraph" %}
@@ -74,7 +73,7 @@
                         <input type="checkbox" name="{{question.id}}" id="{{choice.id}}" {% if question.required %} required {% endif %} value="{{choice.id}}">
                         <label for="{{choice.id}}" class="txtClr">{{choice.choice}}</label>
                     </div>
-                    {% endfor %}
+                {% endfor %}
                 {% endif %}
                 {% if question.is_skip %}
                 <p>

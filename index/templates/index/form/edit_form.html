@@ -37,7 +37,7 @@
                 <div class="drag-handle">⋮⋮</div>
                 <input type="text" data-id="{{question.id}}" class="question-title edit-on-click input-question" value="{{question.question}}" {% if not request.user.is_superuser %}disabled{% endif %}>
                 <select class="question-type-select input-question-type" data-id="{{question.id}}" data-origin_type = "{{question.question_type}}" {% if not request.user.is_superuser %}disabled{% endif %}>
-                    <option value="title" {% if question.question_type == "title" %}selected{% endif %}>Заголовок</option>
+                    <!-- <option value="title" {% if question.question_type == "title" %}selected{% endif %}>Заголовок</option> -->
                     <option value="short" {% if question.question_type == "short" %}selected{% endif %}>Строка</option>
                     <option value="paragraph" {% if question.question_type == "paragraph" %}selected{% endif %}>Абзац</option>
                     <option value="multiple choice" {% if question.question_type == "multiple choice" %}selected{% endif %}>Один вариант</option>

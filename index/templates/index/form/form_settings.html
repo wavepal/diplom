@@ -9,13 +9,14 @@
 {% endblock %}
 {% block body %}
 <link rel="stylesheet" href="{% static 'css/settings.css' %}">
+<span id="bg-color" style="display: none;">{{form.background_color}}</span>
 <div class="container-fluid">
     <div class="container main-body">
         {% with active_tab='settings' %}
             {% include 'index/includes/sidebar.html' %}
         {% endwith %}
         
-        <div class="margin-top-bottom question-box">
+        <div class="margin-top-bottom settings-box">
             <h1 class="settings-title">Настройки формы</h1>
             
             <form id="setting-form">
@@ -74,7 +75,7 @@
                 
                 <div class="settings-section">
                     <h3 class="settings-section-title">Сообщение после отправки:</h3>
-                    <textarea class="confirmation-message textarea-adjust" id="comfirmation_message" spellcheck="false" {% if not request.user.is_superuser %}disabled{% endif %}>{{form.confirmation_message}}</textarea>
+                    <textarea class="confirmation-message textarea-adjust" id="comfirmation_message" for="comfirmation_message" spellcheck="false" {% if not request.user.is_superuser %}disabled{% endif %}>{{form.confirmation_message}}</textarea>
                 </div>
                 
                 <div class="form-actions">

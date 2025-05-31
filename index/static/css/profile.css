@@ -406,6 +406,10 @@
     .about-textarea {
         width: 100%;
         min-height: 150px;
+        max-width: 100%;
+        max-height: 100%;
+        box-sizing: border-box;
+        overflow: hidden;
         padding: 15px;
         background-color: #F7F8FA;
         color: #000000;
@@ -533,6 +537,10 @@
         border: 1px solid rgba(255,255,255,0.1);
         border-radius: 6px;
         transition: all 0.3s ease;
+        max-width: 100%;
+        max-height: 100%;
+        box-sizing: border-box;
+        overflow: hidden;
     }
     
     .input-animate:focus, .filter-select:focus, .filter-date:focus, .long-answer:focus {
