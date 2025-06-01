@@ -56,7 +56,6 @@ document.addEventListener("DOMContentLoaded", () => {
         // Обработчики для всех чекбоксов настроек
         const settingCheckboxes = [
             'collect_email',
-            'is_quiz',
             'authenticated_responder',
             'edit_after_submit',
             'allow_view_score',
@@ -324,7 +323,6 @@ document.addEventListener("DOMContentLoaded", () => {
             headers: {'X-CSRFToken': csrf},
             body: JSON.stringify({
                 "collect_email": document.querySelector("#collect_email")?.checked || false,
-                "is_quiz": document.querySelector("#is_quiz")?.checked || false,
                 "authenticated_responder": document.querySelector("#authenticated_responder")?.checked || false,
                 "confirmation_message": document.querySelector("#comfirmation_message")?.value || "",
                 "edit_after_submit": document.querySelector("#edit_after_submit")?.checked || false,

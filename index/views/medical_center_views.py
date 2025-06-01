@@ -1,8 +1,7 @@
 from django.shortcuts import render, redirect
-from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
-from django.db import IntegrityError
+from django.http import HttpResponseRedirect, JsonResponse
 from django.urls import reverse
-from index.models import RegionMedCenter, User, UserCity, UserMed, MedCenterGroup
+from index.models import User, RegionMedCenter, MedCenterGroup, CITY_CHOICES
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -39,7 +38,7 @@ def add_medical_center(request):
             return HttpResponseRedirect(reverse("manage_medical_centers"))
             
     return render(request, "index/medcenters/add_edit_medical_center.html", {
-        "city_choices": UserCity.CITY_CHOICES,
+        "city_choices": CITY_CHOICES,
         "med_center_groups": MedCenterGroup.objects.all(),
         "default_group_id": default_group_id
     })
@@ -86,7 +85,7 @@ def edit_medical_center(request, center_id):
             
     return render(request, "index/medcenters/add_edit_medical_center.html", {
         "center": center,
-        "city_choices": UserCity.CITY_CHOICES,
+        "city_choices": CITY_CHOICES,
         "med_center_groups": MedCenterGroup.objects.all(),
         "default_group_id": return_to_group
     })
@@ -145,12 +144,11 @@ def manage_medical_centers(request):
                 
     med_centers = RegionMedCenter.objects.all().order_by('region', 'med_center')
     med_center_groups = MedCenterGroup.objects.all().order_by('name')
-    city_choices = UserCity.CITY_CHOICES
     
     return render(request, "index/medcenters/manage_medical_centers.html", {
         "med_centers": med_centers,
         "med_center_groups": med_center_groups,
-        "city_choices": city_choices
+        "city_choices": CITY_CHOICES
     })
 
 @login_required
@@ -164,16 +162,10 @@ def update_med_center(request, user_id):
     if request.method == 'POST':
         med_center_name = request.POST.get('med_center')
         if med_center_name:
-            user_med_instance, created = UserMed.objects.get_or_create(
-                user=user, defaults={'med_center': med_center_name}
-            )
-
-            if not created:
-                user_med_instance.med_center = med_center_name
-                user_med_instance.save()
-
-            user.med_center = user_med_instance 
+            # Обновляем медцентр пользователя напрямую
+            user.med_center = med_center_name
             user.save()
+            
             messages.success(request, f"Медицинский центр для {user.username} был обновлен!")
             return redirect('update_med_center', user_id=user.id)
         else:

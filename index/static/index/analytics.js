@@ -95,6 +95,22 @@ document.addEventListener("DOMContentLoaded", () => {
             background: white;
             z-index: 1;
         }
+
+        .chart-filter-select {
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            background-color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            min-width: 120px;
+        }
+
+        .chart-filter-select:focus {
+            outline: none;
+            border-color: #80bdff;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+        }
     `;
     document.head.appendChild(style);
 
@@ -107,16 +123,6 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         window.onclick = e => {
             if(e.target == document.querySelector("#setting")) document.querySelector("#setting").style.display = "none";
-        }
-    })
-    document.querySelector("#delete-form").addEventListener("submit", e => {
-        e.preventDefault();
-        if(window.confirm("Вы уверены? Это действие нельзя отменить.")){
-            fetch('delete', {
-                method: "DELETE",
-                headers: {'X-CSRFToken': csrf}
-            })
-            .then(() => window.location = "/")
         }
     })
     document.querySelectorAll("#send-form-btn").forEach(btn => {
@@ -150,65 +156,6 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         });
     });
-    document.querySelector("#setting-form").addEventListener("submit", e => {
-        e.preventDefault();
-        fetch('edit_setting', {
-            method: "POST",
-            headers: {'X-CSRFToken': csrf},
-            body: JSON.stringify({
-                "collect_email": document.querySelector("#collect_email").checked,
-                "is_quiz": document.querySelector("#is_quiz").checked,
-                "authenticated_responder": document.querySelector("#authenticated_responder").checked,
-                "confirmation_message": document.querySelector("#comfirmation_message").value,
-                "edit_after_submit": document.querySelector("#edit_after_submit").checked,
-                "allow_view_score": document.querySelector("#allow_view_score").checked
-            })
-        })
-        document.querySelector("#setting").style.display = "none";
-        if(!document.querySelector("#collect_email").checked){
-            if(document.querySelector(".collect-email")) document.querySelector(".collect-email").parentNode.removeChild(document.querySelector(".collect-email"))
-        }else{
-            if(!document.querySelector(".collect-email")){
-                let collect_email = document.createElement("div");
-                collect_email.classList.add("collect-email")
-                collect_email.innerHTML = `<h3 class="question-title">Email адрес <span class="require-star">*</span></h3>
-                <input type="text" autoComplete="off" aria-label="Email адрес" disabled dir = "auto" class="require-email-edit"
-                placeholder = "Email адрес" />
-                <p class="collect-email-desc">Эта форма собирает адреса электронных почт.</p>`
-                document.querySelector("#form-head").appendChild(collect_email)
-            }
-        }
-        if(document.querySelector("#is_quiz").checked){
-            if(!document.querySelector("#add-score")){
-                let is_quiz = document.createElement('a')
-                is_quiz.setAttribute("href", "score");
-                is_quiz.setAttribute("id", "add-score");
-                is_quiz.innerHTML = `<img src = "/static/Icon/score-form.png" id="add-score" class = "form-option-icon" title = "Добавить оценку" alt = "Score icon" />`;
-                document.querySelector(".question-options").appendChild(is_quiz)
-            }
-            if(!document.querySelector(".score")){
-                let quiz_nav = document.createElement("span");
-                quiz_nav.classList.add("col-4");
-                quiz_nav.classList.add("navigation");
-                quiz_nav.classList.add('score');
-                quiz_nav.innerHTML =   `<a href = "score" class="link">Оценка</a>`;
-                [...document.querySelector(".form-navigation").children].forEach(element => {
-                    element.classList.remove("col-6")
-                    element.classList.add('col-4')
-                })
-                document.querySelector(".form-navigation").insertBefore(quiz_nav, document.querySelector(".form-navigation").childNodes[2])
-            }
-        }else{
-            if(document.querySelector("#add-score")) document.querySelector("#add-score").parentNode.removeChild(document.querySelector("#add-score"))
-            if(document.querySelector(".score")){
-                [...document.querySelector(".form-navigation").children].forEach(element => {
-                    element.classList.remove("col-4")
-                    element.classList.add('col-6')
-                })
-                document.querySelector(".score").parentNode.removeChild(document.querySelector(".score"))
-            }
-        }
-    })
     document.querySelectorAll(".textarea-adjust").forEach(tx => {
         tx.style.height = "auto";
         tx.style.height = (10 + tx.scrollHeight)+"px";
@@ -353,20 +300,28 @@ document.addEventListener("DOMContentLoaded", () => {
     let loading = false;
     let hasMoreResponses = true;
     const responseList = document.querySelector('.modal-content');
-    const loadingIndicator = document.createElement('div');
-    loadingIndicator.className = 'loading-indicator';
-    loadingIndicator.textContent = 'Загрузка...';
-    loadingIndicator.style.display = 'none';
-    loadingIndicator.style.textAlign = 'center';
-    loadingIndicator.style.padding = '10px';
-    responseList.appendChild(loadingIndicator);
+    let loadingIndicator;
+    // Track loaded response IDs to prevent duplicates
+    let loadedResponseIds = new Set();
+    
+    if (responseList) {
+        loadingIndicator = document.createElement('div');
+        loadingIndicator.className = 'loading-indicator';
+        loadingIndicator.textContent = 'Загрузка...';
+        loadingIndicator.style.display = 'none';
+        loadingIndicator.style.textAlign = 'center';
+        loadingIndicator.style.padding = '10px';
+        responseList.appendChild(loadingIndicator);
+    }
 
     // Function to load more responses
     const loadMoreResponses = async () => {
-        if (loading || !hasMoreResponses) return;
+        if (!responseList || loading || !hasMoreResponses) return;
         
         loading = true;
-        loadingIndicator.style.display = 'block';
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'block';
+        }
         
         try {
             const response = await fetch(`responses/load?page=${page}&per_page=${responsesPerPage}`, {
@@ -379,11 +334,25 @@ document.addEventListener("DOMContentLoaded", () => {
             
             if (data.responses.length === 0) {
                 hasMoreResponses = false;
-                loadingIndicator.style.display = 'none';
+                if (loadingIndicator) {
+                    loadingIndicator.style.display = 'none';
+                }
                 return;
             }
 
+            // Keep track of whether we added any new responses
+            let addedNewResponses = false;
+
             data.responses.forEach(response => {
+                // Skip if we've already loaded this response
+                if (loadedResponseIds.has(response.id)) {
+                    return;
+                }
+                
+                // Mark this response as loaded
+                loadedResponseIds.add(response.id);
+                addedNewResponses = true;
+                
                 const p = document.createElement('p');
                 p.innerHTML = `
                     <input type="checkbox" name="response_ids" value="${response.id}">
@@ -441,40 +410,95 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
             });
 
-            page++;
+            // Only increment the page if we actually added new responses
+            if (addedNewResponses) {
+                page++;
+            } else if (data.has_next) {
+                // If we didn't add any new responses but there are more pages, try the next page
+                page++;
+                // Immediately load the next page
+                setTimeout(loadMoreResponses, 0);
+            } else {
+                // If we didn't add any new responses and there are no more pages, we're done
+                hasMoreResponses = false;
+            }
             
         } catch (error) {
             console.error('Error loading responses:', error);
         } finally {
             loading = false;
-            loadingIndicator.style.display = 'none';
+            if (loadingIndicator) {
+                loadingIndicator.style.display = 'none';
+            }
         }
     };
 
     // Initial load
-    loadMoreResponses();
+    if (responseList) {
+        loadMoreResponses();
 
-    // Infinite scroll
-    const handleScroll = () => {
-        if (responseList.scrollHeight - responseList.scrollTop <= responseList.clientHeight + 100) {
-            loadMoreResponses();
-        }
-    };
-
-    responseList.addEventListener('scroll', handleScroll);
+        // Infinite scroll
+        responseList.addEventListener('scroll', () => {
+            if (responseList.scrollHeight - responseList.scrollTop <= responseList.clientHeight + 100) {
+                loadMoreResponses();
+            }
+        });
+    }
 
     // Search functionality with lazy loading
     const searchInput = document.getElementById('response-search');
     let searchTimeout;
 
-    if (searchInput) {
+    if (searchInput && responseList) {
+        // Добавляем информационный текст под полем поиска
+        const searchInfo = document.createElement('div');
+        searchInfo.textContent = 'Поиск работает только по именам пользователей';
+        searchInfo.style.fontSize = '12px';
+        searchInfo.style.color = '#666';
+        searchInfo.style.fontStyle = 'italic';
+        searchInfo.style.marginTop = '5px';
+        searchInfo.style.marginBottom = '10px';
+        searchInfo.style.paddingLeft = '10px';
+        searchInput.parentNode.insertBefore(searchInfo, searchInput.nextSibling);
+
         searchInput.addEventListener('input', function() {
             clearTimeout(searchTimeout);
-            const searchTerm = this.value.toLowerCase();
+            const searchTerm = this.value.trim();
             
             searchTimeout = setTimeout(async () => {
                 try {
-                    const response = await fetch(`responses/search?term=${encodeURIComponent(searchTerm)}`, {
+                    // Если строка поиска пуста, перезагружаем все ответы
+                    if (searchTerm === '') {
+                        // Сбрасываем параметры пагинации и очищаем список
+                        page = 1;
+                        hasMoreResponses = true;
+                        loadedResponseIds.clear(); // Clear the set of loaded response IDs
+                        
+                        // Очищаем существующие ответы, кроме индикатора загрузки
+                        const children = Array.from(responseList.children);
+                        children.forEach(child => {
+                            if (child !== loadingIndicator) {
+                                responseList.removeChild(child);
+                            }
+                        });
+                        
+                        // Загружаем первую страницу ответов заново
+                        loadMoreResponses();
+                        return;
+                    }
+                    
+                    // Показываем индикатор загрузки для поиска
+                    if (loadingIndicator) {
+                        loadingIndicator.style.display = 'block';
+                    }
+                    
+                    console.log('Поисковый запрос:', searchTerm);
+                    
+                    // Кодируем термин для URL с поддержкой кириллицы
+                    const encodedTerm = encodeURIComponent(searchTerm);
+                    console.log('Закодированный запрос:', encodedTerm);
+                    
+                    const response = await fetch(`responses/search?term=${encodedTerm}`, {
                         headers: {
                             'X-CSRFToken': csrf
                         }
@@ -483,9 +507,15 @@ document.addEventListener("DOMContentLoaded", () => {
                     const data = await response.json();
                     
                     // Clear existing responses except loading indicator
-                    while (responseList.firstChild !== loadingIndicator) {
-                        responseList.removeChild(responseList.firstChild);
-                    }
+                    const children = Array.from(responseList.children);
+                    children.forEach(child => {
+                        if (child !== loadingIndicator) {
+                            responseList.removeChild(child);
+                        }
+                    });
+                    
+                    // Clear the set of loaded response IDs for the new search
+                    loadedResponseIds.clear();
                     
                     data.responses.forEach(response => {
                         const p = document.createElement('p');
@@ -544,10 +574,32 @@ document.addEventListener("DOMContentLoaded", () => {
                             }
                         });
                     });
+
+                    if (data.responses.length === 0) {
+                        // Показываем сообщение, что ничего не найдено
+                        const noResultsP = document.createElement('p');
+                        noResultsP.textContent = 'Не найдено ответов с указанным именем пользователя';
+                        noResultsP.style.textAlign = 'center';
+                        noResultsP.style.padding = '10px';
+                        noResultsP.style.fontStyle = 'italic';
+                        noResultsP.style.color = '#666';
+                        responseList.insertBefore(noResultsP, loadingIndicator);
+                    }
                 } catch (error) {
                     console.error('Error searching responses:', error);
+                    // Показываем сообщение об ошибке
+                    const errorP = document.createElement('p');
+                    errorP.textContent = 'Ошибка при поиске ответов. Пожалуйста, попробуйте еще раз.';
+                    errorP.style.textAlign = 'center';
+                    errorP.style.color = 'red';
+                    responseList.insertBefore(errorP, loadingIndicator);
+                } finally {
+                    // Скрываем индикатор загрузки в любом случае
+                    if (loadingIndicator) {
+                        loadingIndicator.style.display = 'none';
+                    }
                 }
-            }, 300);
+            }, 500);
         });
     }
 
@@ -705,229 +757,6 @@ document.addEventListener("DOMContentLoaded", () => {
     initializeLazyTable('medCenterTable', 'responses/load_med_centers');
     initializeLazyTable('totalScoresTable', 'responses/load_total_scores');
 
-    // Функции для обновления разделов страницы
-    function updateSummarySection(data) {
-        const content = document.getElementById('summary-content');
-        if (!content) return;
-
-        content.style.display = 'block';
-        
-        // Обновляем данные о вопросах и ответах
-        let html = '';
-        data.responsesSummary.forEach(item => {
-            if (item.question.question_type === 'multiple choice' || item.question.question_type === 'checkbox') {
-                html += `
-                    <div class="response-summary">
-                        <h3 class="response-summary-title">${item.question.question}</h3>
-                        <div class="chart-container">
-                            <canvas id="chart-${item.question.id}"></canvas>
-                        </div>
-                    </div>
-                `;
-            }
-        });
-        
-        content.innerHTML = html;
-        
-        // Инициализируем графики
-        data.responsesSummary.forEach(item => {
-            if (item.question.question_type === 'multiple choice' || item.question.question_type === 'checkbox') {
-                const ctx = document.getElementById(`chart-${item.question.id}`);
-                if (ctx) {
-                    const chartData = {
-                        labels: Object.keys(data.choiceAnswered[item.question.id] || {}),
-                        datasets: [{
-                            data: Object.values(data.choiceAnswered[item.question.id] || {}),
-                            backgroundColor: generateColors(Object.keys(data.choiceAnswered[item.question.id] || {}).length)
-                        }]
-                    };
-                    
-                    new Chart(ctx, {
-                        type: 'bar',
-                        data: chartData,
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            scales: {
-                                yAxes: [{
-                                    ticks: {
-                                        beginAtZero: true,
-                                        stepSize: 1
-                                    }
-                                }]
-                            }
-                        }
-                    });
-                }
-            }
-        });
-    }
-
-    function updateAveragesSection(data) {
-        const content = document.getElementById('averages-content');
-        if (!content) return;
-
-        content.style.display = 'block';
-        
-        // Обновляем таблицу средних оценок
-        let html = `
-            <h2>Средние оценки по медцентрам</h2>
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Медцентр</th>
-                        <th>Средняя оценка</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-        
-        data.average_scores_sorted.forEach(([medCenter, scores]) => {
-            html += `
-                <tr>
-                    <td>${medCenter}</td>
-                    <td>${scores.total_score}%</td>
-                </tr>
-            `;
-        });
-        
-        html += `
-                </tbody>
-            </table>
-        `;
-        
-        content.innerHTML = html;
-    }
-
-    function updateMedStatsSection(data) {
-        const content = document.getElementById('med-stats-content');
-        if (!content) return;
-
-        content.style.display = 'block';
-        
-        // Обновляем статистику медцентров
-        let html = `
-            <h2>Статистика по медцентрам</h2>
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Медцентр</th>
-                        <th>Всего ответов</th>
-                        <th>Негативных ответов</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-        
-        Object.entries(data.med_center_stats).forEach(([medCenter, stats]) => {
-            html += `
-                <tr>
-                    <td>${medCenter}</td>
-                    <td>${stats.total_responses}</td>
-                    <td>${Object.values(stats.questions).reduce((a, b) => a + b, 0)}</td>
-                </tr>
-            `;
-        });
-        
-        html += `
-                </tbody>
-            </table>
-        `;
-        
-        content.innerHTML = html;
-    }
-
-    function updateRangeSliderSection(data) {
-        const content = document.getElementById('range-slider-content');
-        if (!content) return;
-
-        content.style.display = 'block';
-        
-        // Обновляем графики range slider
-        let html = '';
-        Object.entries(data.range_slider_data).forEach(([questionId, questionData]) => {
-            html += `
-                <div class="range-slider-chart">
-                    <h3>${questionData.question}</h3>
-                    <canvas id="range-slider-${questionId}"></canvas>
-                </div>
-            `;
-        });
-        
-        content.innerHTML = html;
-        
-        // Инициализируем графики
-        Object.entries(data.range_slider_data).forEach(([questionId, questionData]) => {
-            const ctx = document.getElementById(`range-slider-${questionId}`);
-            if (ctx) {
-                new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: questionData.months,
-                        datasets: Object.entries(questionData.averages_by_center).map(([center, values], index) => ({
-                            label: center,
-                            data: values,
-                            borderColor: generateColors(1)[0],
-                            fill: false
-                        }))
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            yAxes: [{
-                                ticks: {
-                                    beginAtZero: true,
-                                    callback: value => value + '%'
-                                }
-                            }]
-                        }
-                    }
-                });
-            }
-        });
-    }
-
-    function updateFinalScoresSection(data) {
-        const content = document.getElementById('final-scores-content');
-        if (!content) return;
-
-        content.style.display = 'block';
-        
-        // Обновляем таблицу итоговых оценок
-        let html = `
-            <h2>Итоговые оценки</h2>
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Медцентр</th>
-                        <th>Итоговая оценка</th>
-                        <th>Количество жалоб</th>
-                        <th>Влияние жалоб</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-        
-        Object.entries(data.final_scores).forEach(([medCenter, scores]) => {
-            html += `
-                <tr>
-                    <td>${medCenter}</td>
-                    <td>${scores.total_score}%</td>
-                    <td>${scores.negative_count}</td>
-                    <td>${scores.negative_percentage}%</td>
-                </tr>
-            `;
-        });
-        
-        html += `
-                </tbody>
-            </table>
-        `;
-        
-        content.innerHTML = html;
-    }
-
     // Вспомогательная функция для генерации цветов
     function generateColors(count) {
         const colors = [];
@@ -962,9 +791,16 @@ document.addEventListener("DOMContentLoaded", () => {
             
             const chartId = container.getAttribute('id');
             const chartType = container.getAttribute('data-chart-type');
+            
+            // Skip processing for final scores and negative impact charts
+            if (chartType === 'final-scores' || chartType === 'negative-impact') {
+                return;
+            }
+            
             const canvas = container.querySelector('canvas');
-            const chartTypeSelect = document.getElementById(`chartTypeSelect${chartId.replace('chartContainer', '')}`);
-            const timePeriodSelect = document.getElementById(`timePeriodSelect${chartId.replace('chartContainer', '')}`);
+            const questionId = chartId.replace('chartContainer', '');
+            const chartTypeSelect = document.getElementById(`chartTypeSelect${questionId}`);
+            const timePeriodSelect = document.getElementById(`timePeriodSelect${questionId}`);
             
             if (!canvas || window.chartInstances.has(chartId)) return;
 
@@ -986,9 +822,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 
                 const responseData = await response.json();
                 
-                // Get the question ID from the container ID
-                const questionId = chartId.replace('chartContainer', '');
-                
                 // Extract data for this specific question
                 const questionData = responseData.range_slider_data[questionId];
                 if (!questionData) {
@@ -1003,7 +836,13 @@ document.addEventListener("DOMContentLoaded", () => {
                     labels: questionData.months,
                     datasets: Object.entries(questionData.averages_by_center).map(([center, values], index) => ({
                         label: center,
-                        data: values.map(value => value ? (value / questionData.max_value * 100).toFixed(2) : 0),
+                        data: values.map(value => {
+                            if (value === null || value === undefined || value === '') {
+                                return '0.00'; // Return 0% for null/empty values
+                            }
+                            // Always convert to percentage of max value
+                            return ((value / questionData.max_value) * 100).toFixed(2);
+                        }),
                         borderColor: colors[index],
                         backgroundColor: colors[index],
                         borderWidth: 2,
@@ -1022,18 +861,37 @@ document.addEventListener("DOMContentLoaded", () => {
                         data: dataset.data.slice(-initialPeriod)
                     }))
                 };
+                
             } else {
-                chartData = JSON.parse(container.getAttribute('data-chart-data'));
+                // Для checkbox и multiple choice графиков
+                const chartDataAttr = canvas.getAttribute('data-chart-data');
+                if (chartDataAttr) {
+                    try {
+                        chartData = JSON.parse(chartDataAttr);
+                    } catch (e) {
+                        console.error('Error parsing chart data:', e);
+                        throw new Error('Invalid chart data format');
+                    }
+                } else {
+                    throw new Error('Chart data is not specified');
+                }
                 originalData = chartData;
             }
+
+            if (!chartData || !chartData.datasets) {
+                throw new Error('Invalid chart data format');
+            }
             
-            const initialType = chartTypeSelect ? chartTypeSelect.value : 'line';
+            // Получаем тип графика из селектора или используем bar по умолчанию
+            const initialType = chartTypeSelect ? chartTypeSelect.value : 'bar';
             
             // Update dataset styling based on chart type
             chartData.datasets = chartData.datasets.map(dataset => ({
                 ...dataset,
-                backgroundColor: initialType === 'bar' ? dataset.borderColor : 'rgba(0, 0, 0, 0)',
-                fill: initialType === 'bar'
+                backgroundColor: dataset.backgroundColor,
+                fill: initialType === 'bar',
+                borderColor: initialType === 'line' ? dataset.backgroundColor : undefined,
+                borderWidth: initialType === 'line' ? 2 : 1
             }));
             
             let chartConfig = {
@@ -1044,14 +902,17 @@ document.addEventListener("DOMContentLoaded", () => {
                     maintainAspectRatio: false,
                     scales: {
                         yAxes: [{
+                            display: ['bar', 'line'].includes(initialType),
                             ticks: {
                                 beginAtZero: true,
+                                max: chartType === 'range-slider' ? 100 : undefined,
                                 callback: function(value) {
                                     return chartType === 'range-slider' ? value + '%' : value;
                                 }
                             }
                         }],
                         xAxes: [{
+                            display: ['bar', 'line'].includes(initialType),
                             ticks: {
                                 autoSkip: false
                             }
@@ -1060,11 +921,17 @@ document.addEventListener("DOMContentLoaded", () => {
                     tooltips: {
                         callbacks: {
                             label: function(tooltipItem, data) {
-                                const label = data.datasets[tooltipItem.datasetIndex].label || '';
-                                const value = tooltipItem.yLabel;
+                                const datasetLabel = data.datasets[tooltipItem.datasetIndex].label || '';
+                                const label = data.labels[tooltipItem.index];
+                                const value = tooltipItem.yLabel || data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                                
+                                if (['pie', 'doughnut', 'polarArea'].includes(chartConfig.type)) {
+                                    return `${label}: ${value}`;
+                                }
+                                
                                 return chartType === 'range-slider' 
-                                    ? `${label}: ${value}%`
-                                    : `${label}: ${value}`;
+                                    ? `${datasetLabel}: ${value}%`
+                                    : `${datasetLabel}: ${value}`;
                             }
                         }
                     }
@@ -1085,13 +952,19 @@ document.addEventListener("DOMContentLoaded", () => {
                         // Update dataset styling based on new chart type
                         currentData.datasets = currentData.datasets.map(dataset => ({
                             ...dataset,
-                            backgroundColor: newType === 'bar' ? dataset.borderColor : 'rgba(0, 0, 0, 0)',
-                            fill: newType === 'bar'
+                            backgroundColor: dataset.backgroundColor,
+                            fill: newType === 'bar',
+                            borderColor: newType === 'line' ? dataset.backgroundColor : undefined,
+                            borderWidth: newType === 'line' ? 2 : 1
                         }));
                         
                         chart.destroy();
                         chartConfig.type = newType;
                         chartConfig.data = currentData;
+                        
+                        // Update scales visibility based on chart type
+                        chartConfig.options.scales.xAxes[0].display = ['bar', 'line'].includes(newType);
+                        chartConfig.options.scales.yAxes[0].display = ['bar', 'line'].includes(newType);
                         
                         const newChart = new Chart(ctx, chartConfig);
                         window.chartInstances.set(chartId, newChart);
@@ -1190,6 +1063,15 @@ document.addEventListener("DOMContentLoaded", () => {
                             if (loadingIndicator) {
                                 loadingIndicator.style.display = 'none';
                             }
+                            
+                            // Показать сообщение об ошибке
+                            const errorMessage = chartContainer.querySelector('.error-message') || document.createElement('div');
+                            if (!chartContainer.querySelector('.error-message')) {
+                                errorMessage.className = 'error-message';
+                                chartContainer.appendChild(errorMessage);
+                            }
+                            errorMessage.style.display = 'block';
+                            errorMessage.textContent = 'Ошибка при загрузке графика: ' + error.message;
                         }
                     }
                 }

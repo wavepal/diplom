@@ -3,115 +3,92 @@
 {% block title %}Ответ - {{form.title}}{% endblock %}
 {% block body %}
 <div class="container-fluid">
-    {% with active_tab='responses' %}
-        {% include 'index/includes/sidebar.html' %}
-    {% endwith %}
+    {% if request.user == form.creator %}
+        {% with active_tab='preview' %}
+            {% include 'index/includes/sidebar.html' %}
+        {% endwith %}
+    {% endif %}
     <div class="container main-body">
-        <div class="margin-top-bottom box question-box">
-            <h1 class="form-title">Ответ на форму</h1>
-            <div class="response-info">
-                <p><strong>Дата ответа:</strong> {{ response.createdAt|date:"d.m.Y H:i" }}</p>
-                {% if response.responder_username %}
-                    <p><strong>Пользователь:</strong> {{ response.responder_username }}</p>
-                {% endif %}
-                {% if response.responder_email %}
-                    <p><strong>Email:</strong> {{ response.responder_email }}</p>
-                {% endif %}
-                {% if response.responder_med %}
-                    <p><strong>Медцентр:</strong> {{ response.responder_med }}</p>
-                {% endif %}
+        <span id="bg-color" style="display: none;">{{form.background_color}}</span>
+        <span id="text-color" style="display: none;">{{form.text_color}}</span>
+        
+        <div class="margin-top-bottom box box-shadow bg-white" style="border-radius: 12px; border: 1px solid rgba(185, 185, 185, 0.2); transition: all 0.3s ease;">
+            <div class="form-title-box" style="padding: 1rem 1rem 0.5rem 1rem; border-bottom: 1px solid rgba(185, 185, 185, 0.2);">
+                <h1 class="form-title txtClr" style="font-family: 'Roboto', sans-serif; font-weight: lighter; font-size: 1.8rem; margin-bottom: 0.5rem;">Ответ на форму</h1>
             </div>
             
-            {% for answer in answers %}
-            <div class="margin-top-bottom box answer-box">
-                <h3 class="question-title">{{ answer.question.question }}</h3>
-                {% if answer.question.question_type == "short" or answer.question.question_type == "paragraph" %}
-                    <p class="answer-text">{{ answer.answer }}</p>
-                {% elif answer.question.question_type == "multiple choice" %}
-                    <p class="answer-text">{{ answer.selected_choice.choice }}</p>
-                    {% if form.is_quiz %}
-                        <p class="score-info">Баллы: {{ answer.selected_choice.scores }}</p>
+            <div style="padding: 1rem;">
+                <p class="text-label" style="font-family: 'Jost', sans-serif; font-size: 1.1rem; color: #383C40; margin-bottom: 1.5rem;">
+                    {% if message %}
+                        {{ message }}
+                    {% else %}
+                        {{ form.confirmation_message }}
                     {% endif %}
-                {% elif answer.question.question_type == "checkbox" %}
-                    <ul class="answer-list">
-                    {% for choice in answer.selected_choices.all %}
-                        <li>{{ choice.choice }}
-                            {% if form.is_quiz %}
-                                <span class="score-info">({{ choice.scores }} баллов)</span>
-                            {% endif %}
-                        </li>
-                    {% endfor %}
-                    </ul>
-                {% elif answer.question.question_type == "range slider" %}
-                    <p class="answer-text">{{ answer.answer }} из {{ answer.question.max_value }}</p>
+                </p>
+                
+                {% if response and form.edit_after_submit %}
+                <div style="margin-bottom: 1.5rem; text-align: right;">
+                    <a href="{% url 'edit_response' form.code response.response_code %}" class="primary-button" style="display: inline-flex; text-decoration: none; padding: 0.75rem 1.5rem;">
+                        <i class="bi bi-pencil-square" style="margin-right: 0.5rem;"></i>Редактировать ответ
+                    </a>
+                </div>
                 {% endif %}
                 
-                {% if answer.is_skipped %}
-                    <p class="skip-info">Ответ не учитывается в статистике</p>
+                {% if response %}
+                <div class="response-info" style="background-color: rgba(22, 105, 255, 0.05); padding: 1.5rem; border-radius: 10px; margin-bottom: 2rem;">
+                    <h3 style="font-family: 'Roboto', sans-serif; font-size: 1.2rem; margin-bottom: 1rem; color: #1669FF;">Информация об ответе</h3>
+                    <p style="margin-bottom: 0.5rem;"><strong>Дата ответа:</strong> {{ response.createdAt|date:"d.m.Y H:i" }}</p>
+                    {% if response.responder_username %}
+                        <p style="margin-bottom: 0.5rem;"><strong>Пользователь:</strong> {{ response.responder_username }}</p>
+                    {% endif %}
+                    {% if response.responder_email %}
+                        <p style="margin-bottom: 0.5rem;"><strong>Email:</strong> {{ response.responder_email }}</p>
+                    {% endif %}
+                    {% if response.responder_med %}
+                        <p style="margin-bottom: 0.5rem;"><strong>Медцентр:</strong> {{ response.responder_med }}</p>
+                    {% endif %}
+                </div>
+                
+                {% if response.response.all %}
+                    <h3 style="font-family: 'Roboto', sans-serif; font-size: 1.3rem; margin-bottom: 1.5rem; color: #383C40;">Ответы</h3>
+                    {% for answer in response.response.all %}
+                    <div class="margin-top-bottom box answer-box" style="background-color: #FFFFFF; border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); transition: all 0.3s ease; border: 1px solid rgba(185, 185, 185, 0.2);">
+                        <h3 class="question-title" style="font-family: 'Roboto', sans-serif; font-size: 1.2rem; margin-bottom: 1rem; color: #1669FF;">{{ answer.answer_to.question }}</h3>
+                        {% if answer.answer_to.question_type == "short" or answer.answer_to.question_type == "paragraph" %}
+                            <p class="answer-text" style="font-family: 'Jost', sans-serif; font-size: 1.1rem; padding: 0.5rem; background-color: rgba(22, 105, 255, 0.03); border-radius: 5px;">{{ answer.answer }}</p>
+                        {% elif answer.answer_to.question_type == "multiple choice" %}
+                            {% for choice in answer.answer_to.choices.all %}
+                                {% if choice.id|stringformat:"s" == answer.answer %}
+                                    <p class="answer-text" style="font-family: 'Jost', sans-serif; font-size: 1.1rem; padding: 0.5rem; background-color: rgba(22, 105, 255, 0.03); border-radius: 5px;">{{ choice.choice }}</p>
+                                {% endif %}
+                            {% endfor %}
+                        {% elif answer.answer_to.question_type == "checkbox" %}
+                            <ul class="answer-list" style="list-style-type: none; padding-left: 0.5rem;">
+                            {% for choice in answer.answer_to.choices.all %}
+                                {% if choice.id|stringformat:"s" in answer.answer.split %}
+                                    <li style="font-family: 'Jost', sans-serif; font-size: 1.1rem; padding: 0.5rem; background-color: rgba(22, 105, 255, 0.03); border-radius: 5px; margin-bottom: 0.5rem;">
+                                        <i class="fas fa-check-circle" style="color: #1669FF; margin-right: 0.5rem;"></i>{{ choice.choice }}
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            </ul>
+                        {% elif answer.answer_to.question_type == "range slider" %}
+                            <p class="answer-text" style="font-family: 'Jost', sans-serif; font-size: 1.1rem; padding: 0.5rem; background-color: rgba(22, 105, 255, 0.03); border-radius: 5px;">
+                                <span style="font-size: 1.3rem; font-weight: bold; color: #1669FF;">{{ answer.answer }}</span> из {{ answer.answer_to.max_value }}
+                            </p>
+                        {% endif %}
+                        
+                        {% if answer.is_skipped %}
+                            <p class="skip-info" style="margin-top: 1rem; padding: 0.5rem; background-color: rgba(255, 153, 0, 0.1); border-radius: 5px; color: #FF9900; font-family: 'Jost', sans-serif;">
+                                <i class="fas fa-exclamation-triangle" style="margin-right: 0.5rem;"></i>Ответ не учитывается в статистике
+                            </p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% endif %}
                 {% endif %}
             </div>
-            {% endfor %}
-            
-            {% if form.is_quiz %}
-            <div class="total-score-box">
-                <h2>Итоговый результат</h2>
-                <p class="total-score">{{ total_score }} / {{ max_possible_score }} баллов</p>
-                <p class="score-percentage">({{ score_percentage }}%)</p>
-            </div>
-            {% endif %}
         </div>
     </div>
 </div>
-
-<style>
-.response-info {
-    margin-bottom: 20px;
-    padding: 15px;
-    background-color: #f8f9fa;
-    border-radius: 5px;
-}
-.answer-box {
-    padding: 15px;
-    margin-bottom: 15px;
-    border: 1px solid #dee2e6;
-    border-radius: 5px;
-}
-.answer-text {
-    margin: 10px 0;
-    font-size: 16px;
-}
-.answer-list {
-    list-style-type: none;
-    padding-left: 0;
-}
-.answer-list li {
-    margin: 5px 0;
-}
-.score-info {
-    color: #28a745;
-    font-weight: bold;
-}
-.skip-info {
-    color: #FF3030;
-    font-style: italic;
-    margin-top: 10px;
-}
-.total-score-box {
-    margin-top: 30px;
-    text-align: center;
-    padding: 20px;
-    background-color: #f8f9fa;
-    border-radius: 5px;
-}
-.total-score {
-    font-size: 24px;
-    font-weight: bold;
-    color: #28a745;
-    margin: 10px 0;
-}
-.score-percentage {
-    font-size: 18px;
-    color: #6c757d;
-}
-</style>
 {% endblock %}

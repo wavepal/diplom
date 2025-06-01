@@ -1,8 +1,7 @@
-from django.shortcuts import render, redirect
-from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
-from django.db import IntegrityError
+from django.shortcuts import render
+from django.http import HttpResponseRedirect, JsonResponse
 from django.urls import reverse
-from index.models import RegionMedCenter, Choices, Questions, Answer, Form, Responses
+from index.models import *
 import json
 import random
 import string
@@ -180,26 +179,25 @@ def edit_text_color(request, code):
 def edit_setting(request, code):
     if not request.user.is_authenticated:
         return HttpResponseRedirect(reverse("login"))
-    formInfo = Form.objects.filter(code=code)
+    formInfo = Form.objects.filter(code=code).first()
 
-    if formInfo.count() == 0:
+    if not formInfo:
         return HttpResponseRedirect(reverse("404"))
-    else:
-        formInfo = formInfo[0]
+    
     if not request.user.is_superuser:
         return HttpResponseRedirect(reverse("403"))
+    
     if request.method == "POST":
         data = json.loads(request.body)
         formInfo.collect_email = data.get("collect_email", formInfo.collect_email)
-        formInfo.is_quiz = data.get("is_quiz", formInfo.is_quiz)
         formInfo.authenticated_responder = data.get("authenticated_responder", formInfo.authenticated_responder)
         formInfo.confirmation_message = data.get("confirmation_message", formInfo.confirmation_message)
         formInfo.edit_after_submit = data.get("edit_after_submit", formInfo.edit_after_submit)
-        formInfo.allow_view_score = data.get("allow_view_score", formInfo.allow_view_score)
         formInfo.limit_ip = data.get("limit_ip", formInfo.limit_ip)
         formInfo.submit_limit = data.get("submit_limit", formInfo.submit_limit)
         formInfo.is_single_form = data.get("is_single_form", formInfo.is_single_form)
         formInfo.is_active = data.get("is_active", formInfo.is_active)
+        formInfo.allow_med_center_choice = data.get("allow_med_center_choice", formInfo.allow_med_center_choice)
         formInfo.save()
         return JsonResponse({'message': "Success"})
 
@@ -520,102 +518,102 @@ def copy_question(request, code, question):
             'choices': choices
         })
 
-def score(request, code):
-    if not request.user.is_authenticated:
-        return HttpResponseRedirect(reverse("login"))
-    formInfo = Form.objects.filter(code = code)
-    if formInfo.count() == 0:
-        return HttpResponseRedirect(reverse('404'))
-    else: formInfo = formInfo[0]
-    if not request.user.is_superuser:
-        return HttpResponseRedirect(reverse("403"))
-    if not formInfo.is_quiz:
-        return HttpResponseRedirect(reverse("edit_form", args = [code]))
-    else:
-        return render(request, "index/form/score.html", {
-            "form": formInfo
-        })
+# def score(request, code):
+#     if not request.user.is_authenticated:
+#         return HttpResponseRedirect(reverse("login"))
+#     formInfo = Form.objects.filter(code = code)
+#     if formInfo.count() == 0:
+#         return HttpResponseRedirect(reverse('404'))
+#     else: formInfo = formInfo[0]
+#     if not request.user.is_superuser:
+#         return HttpResponseRedirect(reverse("403"))
+#     if not formInfo.is_quiz:
+#         return HttpResponseRedirect(reverse("edit_form", args = [code]))
+#     else:
+#         return render(request, "index/form/score.html", {
+#             "form": formInfo
+#         })
 
-def edit_score(request, code):
-    if not request.user.is_authenticated:
-        return HttpResponseRedirect(reverse("login"))
-    formInfo = Form.objects.filter(code = code)
-    if formInfo.count() == 0:
-        return HttpResponseRedirect(reverse('404'))
-    else: formInfo = formInfo[0]
-    if not request.user.is_superuser:
-        return HttpResponseRedirect(reverse("403"))
-    if not formInfo.is_quiz:
-        return HttpResponseRedirect(reverse("edit_form", args = [code]))
-    else:
-        if request.method == "POST":
-            data = json.loads(request.body)
-            question_id = data["question_id"]
-            question = formInfo.questions.filter(id = question_id)
-            if question.count() == 0:
-                return HttpResponseRedirect(reverse("edit_form", args = [code]))
-            else: question = question[0]
-            score = data["score"]
-            if score == "": score = 0
-            question.score = score
-            question.save()
-            return JsonResponse({"message": "Success"})
+# def edit_score(request, code):
+#     if not request.user.is_authenticated:
+#         return HttpResponseRedirect(reverse("login"))
+#     formInfo = Form.objects.filter(code = code)
+#     if formInfo.count() == 0:
+#         return HttpResponseRedirect(reverse('404'))
+#     else: formInfo = formInfo[0]
+#     if not request.user.is_superuser:
+#         return HttpResponseRedirect(reverse("403"))
+#     if not formInfo.is_quiz:
+#         return HttpResponseRedirect(reverse("edit_form", args = [code]))
+#     else:
+#         if request.method == "POST":
+#             data = json.loads(request.body)
+#             question_id = data["question_id"]
+#             question = formInfo.questions.filter(id = question_id)
+#             if question.count() == 0:
+#                 return HttpResponseRedirect(reverse("edit_form", args = [code]))
+#             else: question = question[0]
+#             score = data["score"]
+#             if score == "": score = 0
+#             question.score = score
+#             question.save()
+#             return JsonResponse({"message": "Success"})
 
-def answer_key(request, code):
-    if not request.user.is_authenticated:
-        return HttpResponseRedirect(reverse("login"))
-    formInfo = Form.objects.filter(code = code)
-    if formInfo.count() == 0:
-        return HttpResponseRedirect(reverse('404'))
-    else: formInfo = formInfo[0]
-    if not request.user.is_superuser:
-        return HttpResponseRedirect(reverse("403"))
-    if not formInfo.is_quiz:
-        return HttpResponseRedirect(reverse("edit_form", args = [code]))
-    else:
-        if request.method == "POST":
-            data = json.loads(request.body)
-            question = Questions.objects.filter(id = data["question_id"])
-            if question.count() == 0: return HttpResponseRedirect(reverse("edit_form", args = [code]))
-            else: question = question[0]
-            if question.question_type == "short" or question.question_type == "paragraph" or question.question_type == "range slider":
-                question.answer_key = data["answer_key"]
-                question.save()
-            else:
-                for i in question.choices.all():
-                    i.is_answer = False
-                    i.save()
-                if question.question_type == "multiple choice":
-                    choice = question.choices.get(pk = data["answer_key"])
-                    choice.is_answer = True
-                    choice.save()
-                else:
-                    for i in data["answer_key"]:
-                        choice = question.choices.get(id = i)
-                        choice.is_answer = True
-                        choice.save()
-                question.save()
-            return JsonResponse({'message': "Success"})
+# def answer_key(request, code):
+#     if not request.user.is_authenticated:
+#         return HttpResponseRedirect(reverse("login"))
+#     formInfo = Form.objects.filter(code = code)
+#     if formInfo.count() == 0:
+#         return HttpResponseRedirect(reverse('404'))
+#     else: formInfo = formInfo[0]
+#     if not request.user.is_superuser:
+#         return HttpResponseRedirect(reverse("403"))
+#     if not formInfo.is_quiz:
+#         return HttpResponseRedirect(reverse("edit_form", args = [code]))
+#     else:
+#         if request.method == "POST":
+#             data = json.loads(request.body)
+#             question = Questions.objects.filter(id = data["question_id"])
+#             if question.count() == 0: return HttpResponseRedirect(reverse("edit_form", args = [code]))
+#             else: question = question[0]
+#             if question.question_type == "short" or question.question_type == "paragraph" or question.question_type == "range slider":
+#                 question.answer_key = data["answer_key"]
+#                 question.save()
+#             else:
+#                 for i in question.choices.all():
+#                     i.is_answer = False
+#                     i.save()
+#                 if question.question_type == "multiple choice":
+#                     choice = question.choices.get(pk = data["answer_key"])
+#                     choice.is_answer = True
+#                     choice.save()
+#                 else:
+#                     for i in data["answer_key"]:
+#                         choice = question.choices.get(id = i)
+#                         choice.is_answer = True
+#                         choice.save()
+#                 question.save()
+#             return JsonResponse({'message': "Success"})
 
-def feedback(request, code):
-    if not request.user.is_authenticated:
-        return HttpResponseRedirect(reverse("login"))
-    formInfo = Form.objects.filter(code = code)
+# def feedback(request, code):
+#     if not request.user.is_authenticated:
+#         return HttpResponseRedirect(reverse("login"))
+#     formInfo = Form.objects.filter(code = code)
 
-    if formInfo.count() == 0:
-        return HttpResponseRedirect(reverse('404'))
-    else: formInfo = formInfo[0]
-    if not request.user.is_superuser:
-        return HttpResponseRedirect(reverse("403"))
-    if not formInfo.is_quiz:
-        return HttpResponseRedirect(reverse("edit_form", args = [code]))
-    else:
-        if request.method == "POST":
-            data = json.loads(request.body)
-            question = formInfo.questions.get(id = data["question_id"])
-            question.feedback = data["feedback"]
-            question.save()
-            return JsonResponse({'message': "Success"})
+#     if formInfo.count() == 0:
+#         return HttpResponseRedirect(reverse('404'))
+#     else: formInfo = formInfo[0]
+#     if not request.user.is_superuser:
+#         return HttpResponseRedirect(reverse("403"))
+#     if not formInfo.is_quiz:
+#         return HttpResponseRedirect(reverse("edit_form", args = [code]))
+#     else:
+#         if request.method == "POST":
+#             data = json.loads(request.body)
+#             question = formInfo.questions.get(id = data["question_id"])
+#             question.feedback = data["feedback"]
+#             question.save()
+#             return JsonResponse({'message': "Success"})
 
 def view_form(request, code):
     formInfo = Form.objects.filter(code=code).first()
@@ -625,8 +623,15 @@ def view_form(request, code):
     # Руководители не могут заполнять формы
     if request.user.is_authenticated and request.user.is_manager():
         return HttpResponseRedirect(reverse("responses", args=[code]))
-        
-    med_centers = RegionMedCenter.objects.all().order_by('region', 'med_center')
+    
+    # Получаем список медцентров, если форма разрешает выбор медцентра
+    med_centers = None
+    if formInfo.allow_med_center_choice:
+        med_centers = RegionMedCenter.objects.all().order_by('region', 'med_center')
+    else:
+        # Для админов всегда загружаем список медцентров
+        if request.user.is_authenticated and request.user.is_superuser:
+            med_centers = RegionMedCenter.objects.all().order_by('region', 'med_center')
     
     return render(request, "index/form/view_form.html", {
         "form": formInfo,
@@ -663,7 +668,6 @@ def submit_form(request, code):
             if existing_response and datetime.now() - existing_response.createdAt < timedelta(hours=24):
                 return render(request, "index/form/form_response.html", {
                     "form": formInfo,
-                    "code": code,
                     "message": "Вы уже отправили ответ на эту форму в последние 24 часа."
                 })
 
@@ -672,11 +676,10 @@ def submit_form(request, code):
             if existing_response and timezone.now() - existing_response.createdAt < timedelta(hours=24):
                 return render(request, "index/form/form_response.html", {
                     "form": formInfo,
-                    "code": code,
                     "message": "Вы уже отправили ответ на эту форму в последние 24 часа."
                 })
         
-        code = ''.join(random.choice(string.ascii_letters + string.digits) for x in range(20))
+        response_code = ''.join(random.choice(string.ascii_letters + string.digits) for x in range(20))
         
         if request.user.is_authenticated:
             # Получаем пользовательские данные
@@ -688,10 +691,13 @@ def submit_form(request, code):
             custom_username = request.POST.get("custom_username")
             custom_submit_date = request.POST.get("custom_submit_date")
             custom_submit_time = request.POST.get("custom_submit_time")
+            
+            # Проверяем, выбрал ли пользователь медцентр
+            med_center_choice = request.POST.get("med_center_choice")
 
             # Создаем базовый объект response БЕЗ сохранения
             response = Responses(
-                response_code=code,
+                response_code=response_code,
                 response_to=formInfo,
                 responder_ip=client_ip,
                 responder=request.user
@@ -699,10 +705,18 @@ def submit_form(request, code):
 
             # Устанавливаем пользовательские данные
             response.responder_email = custom_email if custom_email else request.user.email
-            response.responder_gender = custom_gender if custom_gender else (request.user.gender_info.gender if hasattr(request.user, 'gender_info') else None)
-            response.responder_city = custom_city if custom_city else (request.user.city_info.city if hasattr(request.user, 'city_info') else None)
-            response.responder_med = custom_med if custom_med else (request.user.med_info.med_center if hasattr(request.user, 'med_info') else None)
-            response.responder_birth_date = custom_birth_date if custom_birth_date else (request.user.date_info.date_of_birth if hasattr(request.user, 'date_info') else None)
+            response.responder_gender = custom_gender if custom_gender else (request.user.gender if hasattr(request.user, 'gender') else None)
+            response.responder_city = custom_city if custom_city else (request.user.city if hasattr(request.user, 'city') else None)
+            
+            # Приоритет: 1) custom_med от админа, 2) med_center_choice от пользователя, 3) med_center пользователя
+            if custom_med:
+                response.responder_med = custom_med
+            elif formInfo.allow_med_center_choice and med_center_choice:
+                response.responder_med = med_center_choice
+            else:
+                response.responder_med = request.user.med_center if hasattr(request.user, 'med_center') else None
+                
+            response.responder_birth_date = custom_birth_date if custom_birth_date else (request.user.date_of_birth if hasattr(request.user, 'date_of_birth') else None)
             response.responder_username = custom_username if custom_username else request.user.username
 
             # Устанавливаем пользовательскую дату и время отправки
@@ -731,19 +745,42 @@ def submit_form(request, code):
 
         elif request.user.is_authenticated and formInfo.authenticated_responder:
             response = Responses(
-                response_code=code,
+                response_code=response_code,
                 response_to=formInfo,
                 responder_ip=client_ip,
                 responder=request.user
             )
+            
+            # Проверяем, выбрал ли пользователь медцентр
+            if formInfo.allow_med_center_choice and request.POST.get("med_center_choice"):
+                response.responder_med = request.POST.get("med_center_choice")
+                
             response.save()
         elif formInfo.collect_email:
             response = Responses(
-                response_code=code,
+                response_code=response_code,
                 response_to=formInfo,
                 responder_ip=client_ip,
                 responder_email=request.POST.get("email-address")
             )
+            
+            # Проверяем, выбрал ли пользователь медцентр
+            if formInfo.allow_med_center_choice and request.POST.get("med_center_choice"):
+                response.responder_med = request.POST.get("med_center_choice")
+                
+            response.save()
+        else:
+            # Для анонимных пользователей
+            response = Responses(
+                response_code=response_code,
+                response_to=formInfo,
+                responder_ip=client_ip
+            )
+            
+            # Проверяем, выбрал ли пользователь медцентр
+            if formInfo.allow_med_center_choice and request.POST.get("med_center_choice"):
+                response.responder_med = request.POST.get("med_center_choice")
+                
             response.save()
 
         # Сохраняем ответы на вопросы
@@ -751,7 +788,7 @@ def submit_form(request, code):
             for i in request.POST:
                 if i in ["csrfmiddlewaretoken", "email-address", "custom_email", "custom_gender", 
                         "custom_city", "custom_med", "custom_birth_date", "custom_username",
-                        "custom_submit_date", "custom_submit_time"] or i.startswith("is_skipped_"):
+                        "custom_submit_date", "custom_submit_time", "med_center_choice"] or i.startswith("is_skipped_"):
                     continue
                 
                 try:
@@ -767,11 +804,16 @@ def submit_form(request, code):
                     response.response.add(answer)
 
             response.save()
-        
-        return render(request, "index/form/form_response.html", {
-            "form": formInfo,
-            "code": code
-        })
+            return render(request, "index/form/form_response.html", {
+                "form": formInfo,
+                "response": response
+            })
+        else:
+            # Если по какой-то причине response не создан, возвращаем страницу без него
+            return render(request, "index/form/form_response.html", {
+                "form": formInfo,
+                "message": "Ваш ответ был получен, но произошла ошибка при сохранении деталей ответа."
+            })
     
 def form_list_view(request):
     if not request.user.is_authenticated:

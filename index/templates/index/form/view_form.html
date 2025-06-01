@@ -86,6 +86,7 @@
                 {% endif %}
             </div>
             {% endfor %}
+            {% if request.user.is_superuser %}
             <div class="margin-top-bottom box question-box creator-custom-fields" style="display: none;">
                 <h1 class="question-title txtClr">Пользовательские данные (необязательно)</h1>
                 <h3 class="modal-subtitle txtClr">Имя пользователя:</h3>
@@ -93,7 +94,7 @@
                 <h3 class="modal-subtitle txtClr">Email:</h3>
                 <input type="email" name="custom_email" class="short-answer" placeholder="Email">
                 <p>
-                <select name="custom_med" class="select1" required>
+                <select name="custom_med" class="select1">
                     <option value="">Выберите медцентр</option>
                     {% for med_center in med_centers %}
                         <option value="{{ med_center.med_center }}">{{ med_center.med_center }} ({{ med_center.get_region_display }})</option>
@@ -102,10 +103,11 @@
                 </p>
                 <div class="datetime-fields">
                     <h3 class="modal-subtitle txtClr">Дата и время аудита:</h3>
-                    <input type="date" name="custom_submit_date" class="short-answer" required>
-                    <input type="time" name="custom_submit_time" class="short-answer" required>
+                    <input type="date" name="custom_submit_date" class="short-answer">
+                    <input type="time" name="custom_submit_time" class="short-answer">
                 </div>
             </div>
+            {% endif %}
 
             <script>
             function toggleCustomFields() {
@@ -119,9 +121,32 @@
             </script>
             
             <div class="margin-top-bottom">
+                {% if request.user.is_superuser %}
                 <button type="button" class="btn btn-submit" onclick="toggleCustomFields()">
                     Настроить пользовательские данные
                 </button>
+                {% endif %}
+
+                {% if form.allow_med_center_choice %}
+                <div class="margin-top-bottom box question-box">
+                    <h1 class="question-title txtClr">Выберите медицинский центр {% if not request.user.med_center %}<span class="require-star">*</span>{% endif %}</h1>
+                    <div class="med-center-selection">
+                        <select id="med_center_choice" name="med_center_choice" class="select1" {% if not request.user.med_center %}required{% endif %}>
+                            <option value="">Выберите медицинский центр</option>
+                            {% for center in med_centers %}
+                                <option value="{{ center.med_center }}">{{ center.med_center }} ({{ center.get_region_display }})</option>
+                            {% endfor %}
+                        </select>
+                        <p class="med-center-info txtClr">
+                            Пожалуйста, выберите медицинский центр, к которому относится ваш отзыв.
+                            {% if request.user.med_center %}
+                            <br><small>Текущий медицинский центр: <strong>{{ request.user.med_center }}</strong></small>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                {% endif %}
+
                 <input type="submit" value="Отправить" class="btn btn-submit">
                 <button type="button" class="clear-form-btn btn btn-submit float-right" onclick="clearForm()">Очистить форму</button>
             </div>

@@ -1,7 +1,7 @@
-from django.shortcuts import render
-from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import HttpResponseRedirect, JsonResponse, HttpResponse
 from django.urls import reverse
-from index.models import RegionMedCenter, Choices, Answer, Form, Responses, UserCity, MedCenterGroup
+from index.models import Choices, User, Form, Responses, Answer, Questions, RegionMedCenter, MedCenterGroup, CITY_CHOICES
 import json
 import csv
 from django.http import JsonResponse
@@ -14,9 +14,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 from datetime import datetime, timedelta
-from index.templatetags.calculate_score import calculate_score
-from index.templatetags.calculate_score import calculate_total_score
-from django.db.models import Prefetch, Count, Avg, Q
+from django.db.models import Avg, Q
 from dateutil.relativedelta import relativedelta
 from django.core.paginator import Paginator, EmptyPage
 from django.template.loader import render_to_string
@@ -118,15 +116,6 @@ def responses(request, code):
     # Базовый запрос с минимально необходимыми данными для отображения страницы
     all_responses = Responses.objects.filter(response_to=formInfo).select_related(
         'responder'
-    ).only(
-        'id', 
-        'response_code',
-        'responder_username',
-        'responder_city',
-        'responder_gender',
-        'responder_age',
-        'responder_med',
-        'createdAt'
     )
     
     # Применяем фильтры с использованием Q objects для оптимизации
@@ -135,28 +124,45 @@ def responses(request, code):
         filters &= Q(responder_city=selected_city)
     if selected_gender:
         filters &= Q(responder_gender=selected_gender)
-    if age_min:
-        filters &= Q(responder_age__gte=int(age_min))
-    if age_max:
-        filters &= Q(responder_age__lte=int(age_max))
+    if age_min and age_min.strip():
+        try:
+            filters &= Q(responder_age__gte=int(age_min))
+        except (ValueError, TypeError):
+            pass
+    if age_max and age_max.strip():
+        try:
+            filters &= Q(responder_age__lte=int(age_max))
+        except (ValueError, TypeError):
+            pass
     if selected_med_group:
         med_centers = RegionMedCenter.objects.filter(group_id=selected_med_group).values_list('med_center', flat=True)
         filters &= Q(responder_med__in=med_centers)
     if selected_med_region:
         med_centers = RegionMedCenter.objects.filter(region=selected_med_region).values_list('med_center', flat=True)
         filters &= Q(responder_med__in=med_centers)
-    if selected_med_center:
-        filters &= Q(responder_med=selected_med_center)
-    if date_from:
-        filters &= Q(createdAt__gte=date_from)
-    if date_to:
-        date_to = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
-        filters &= Q(createdAt__lt=date_to)
+    if selected_med_center and selected_med_center.strip():
+        # Ensure exact match for med_center
+        filters &= Q(responder_med__exact=selected_med_center)
+    if date_from and date_from.strip():
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+            filters &= Q(createdAt__gte=date_from_obj)
+        except (ValueError, TypeError):
+            pass
+    if date_to and date_to.strip():
+        try:
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+            filters &= Q(createdAt__lt=date_to_obj)
+        except (ValueError, TypeError):
+            pass
 
     all_responses = all_responses.filter(filters)
 
     # Process questions and answers
     responsesSummary, choiceAnswered, choices_dict = process_questions_and_answers(formInfo)
+    
+    # Calculate filtered response summary
+    filteredResponsesSummary = get_filtered_response_summary(choiceAnswered, all_responses, formInfo)
     
     # Get range slider data
     range_slider_data = get_range_slider_data(formInfo, all_responses)
@@ -168,8 +174,9 @@ def responses(request, code):
         "responsesSummary": responsesSummary,
         "choiceAnswered": choiceAnswered,
         "choices_dict": choices_dict,
+        "filteredResponsesSummary": filteredResponsesSummary,
         "range_slider_data": range_slider_data,
-        "city_choices": UserCity.CITY_CHOICES,
+        "city_choices": CITY_CHOICES,
         'med_centers': RegionMedCenter.objects.values_list('med_center', flat=True).distinct(),
         'med_center_groups': MedCenterGroup.objects.all().order_by('name'),
         'active_forms': Form.objects.filter(is_active=True),
@@ -177,18 +184,26 @@ def responses(request, code):
 
     return render(request, "index/form/analytics.html", context)
 
-def get_filtered_responses(formInfo, age_min, age_max, selected_gender, selected_cities):
+def get_filtered_responses(formInfo, age_min, age_max, selected_gender, selected_cities, selected_med_center=None):
     all_responses = Responses.objects.filter(response_to=formInfo)
     
     # Используем сохраненные статические данные вместо связей
-    if age_min:
-        all_responses = all_responses.filter(responder_age__gte=int(age_min))
-    if age_max:
-        all_responses = all_responses.filter(responder_age__lte=int(age_max))
+    if age_min and age_min.strip():
+        try:
+            all_responses = all_responses.filter(responder_age__gte=int(age_min))
+        except (ValueError, TypeError):
+            pass
+    if age_max and age_max.strip():
+        try:
+            all_responses = all_responses.filter(responder_age__lte=int(age_max))
+        except (ValueError, TypeError):
+            pass
     if selected_gender:
         all_responses = all_responses.filter(responder_gender=selected_gender)
     if selected_cities and selected_cities != ['']:
         all_responses = all_responses.filter(responder_city__in=selected_cities)
+    if selected_med_center and selected_med_center.strip():
+        all_responses = all_responses.filter(responder_med__exact=selected_med_center)
     
     return all_responses
 
@@ -225,26 +240,49 @@ def get_range_slider_data(formInfo, all_responses):
 
     questions = formInfo.questions.filter(question_type="range slider").exclude(question_type="title")
     
+    # Get all responses for the form, ignoring date filters
+    all_form_responses = Responses.objects.filter(response_to=formInfo)
+    
+    # Extract med_center filter from all_responses if it exists
+    med_centers_filter = None
+    if all_responses.count() > 0:
+        # Check if med_center filter is applied (by comparing counts)
+        if all_responses.values('responder_med').distinct().count() < all_form_responses.values('responder_med').distinct().count():
+            med_centers_filter = list(all_responses.values_list('responder_med', flat=True).distinct())
+    
     for question in questions:
         try:
-            responses_for_question = Answer.objects.filter(
+            # Base query for responses_for_question
+            responses_query = Answer.objects.filter(
                 answer_to=question,
-                response__in=all_responses,
+                response__in=all_form_responses,
                 response__createdAt__gte=start_date,
                 is_skipped=False
-            ).select_related('response')
+            )
             
-            # Get unique centers first
+            # Apply med_center filter if it exists
+            if med_centers_filter:
+                responses_query = responses_query.filter(response__responder_med__in=med_centers_filter)
+                
+            responses_for_question = responses_query.select_related('response')
+            
+            # Get unique centers
             centers = responses_for_question.values_list('response__responder_med', flat=True).distinct()
             monthly_averages_by_center = {center: [0] * 12 for center in centers if center is not None}
 
             # Calculate monthly averages using raw SQL to avoid OperationalError
-            monthly_data = Answer.objects.filter(
+            monthly_query = Answer.objects.filter(
                 answer_to=question,
-                response__in=all_responses,
+                response__in=all_form_responses,
                 response__createdAt__gte=start_date,
                 is_skipped=False
-            ).extra(
+            )
+            
+            # Apply med_center filter if it exists
+            if med_centers_filter:
+                monthly_query = monthly_query.filter(response__responder_med__in=med_centers_filter)
+                
+            monthly_data = monthly_query.extra(
                 select={'month': "strftime('%%m', createdAt)"}
             ).values(
                 'response__responder_med',
@@ -272,6 +310,7 @@ def get_range_slider_data(formInfo, all_responses):
                 'max_value': question.max_value
             }
         except Exception as e:
+            print(f"Error in get_range_slider_data: {e}")
             continue
     
     return data
@@ -310,39 +349,49 @@ def get_filtered_response_summary(choiceAnswered, all_responses, formInfo):
     # Создаем словарь для хранения результатов
     filteredResponsesSummary = {}
     
+    print(f"DEBUG: Starting get_filtered_response_summary with {all_responses.count()} responses")
+    
     # Инициализируем счетчики для каждого вопроса и варианта ответа
     for question in formInfo.questions.exclude(question_type="title"):
         if question.question_type in ["multiple choice", "checkbox"]:
             filteredResponsesSummary[question.id] = {}
             for choice in question.choices.all():
                 filteredResponsesSummary[question.id][choice.choice] = 0
-
-    # Подсчитываем ответы для отфильтрованных респондентов
+    
+    print(f"DEBUG: Initialized filteredResponsesSummary with {len(filteredResponsesSummary)} questions")
+    
+    # Для каждого вопроса и ответа напрямую
     for response in all_responses:
-        for question in formInfo.questions.exclude(question_type="title"):
-            if question.question_type in ["multiple choice", "checkbox"]:
-                answers = Answer.objects.filter(
-                    response=response, 
-                    answer_to=question.id, 
-                    is_skipped=False
-                )
-                
+        for question in formInfo.questions.filter(question_type__in=["multiple choice", "checkbox"]):
+            answers = Answer.objects.filter(
+                response=response,
+                answer_to=question,
+                is_skipped=False
+            )
+            
+            for answer in answers:
                 if question.question_type == "checkbox":
-                    for answer in answers:
-                        try:
-                            choice = question.choices.get(id=answer.answer)
-                            filteredResponsesSummary[question.id][choice.choice] += 1
-                        except Choices.DoesNotExist:
-                            continue
-                else:  # multiple choice
-                    answer = answers.first()
-                    if answer:
-                        try:
-                            choice = question.choices.get(id=answer.answer)
-                            filteredResponsesSummary[question.id][choice.choice] += 1
-                        except Choices.DoesNotExist:
-                            continue
-
+                    try:
+                        choice = question.choices.get(id=answer.answer)
+                        filteredResponsesSummary[question.id][choice.choice] += 1
+                        print(f"DEBUG: Added count for question {question.id}, choice {choice.choice}")
+                    except Choices.DoesNotExist:
+                        continue
+                elif question.question_type == "multiple choice":
+                    try:
+                        choice = question.choices.get(id=answer.answer)
+                        filteredResponsesSummary[question.id][choice.choice] += 1
+                        print(f"DEBUG: Added count for question {question.id}, choice {choice.choice}")
+                    except Choices.DoesNotExist:
+                        continue
+    
+    # Print the final data structure for debugging
+    for question_id, choices in filteredResponsesSummary.items():
+        print(f"DEBUG: Question {question_id} has {len(choices)} choices with data:")
+        for choice, count in choices.items():
+            if count > 0:
+                print(f"  - {choice}: {count}")
+    
     return filteredResponsesSummary
 
 def get_user_city_dict(all_responses):
@@ -444,11 +493,17 @@ def export_responses_to_excel(request, code):
     if selected_gender:
         all_responses = all_responses.filter(responder_gender=selected_gender)
     
-    if age_min:
-        all_responses = all_responses.filter(responder_age__gte=int(age_min))
+    if age_min and age_min.strip():
+        try:
+            all_responses = all_responses.filter(responder_age__gte=int(age_min))
+        except (ValueError, TypeError):
+            pass
     
-    if age_max:
-        all_responses = all_responses.filter(responder_age__lte=int(age_max))
+    if age_max and age_max.strip():
+        try:
+            all_responses = all_responses.filter(responder_age__lte=int(age_max))
+        except (ValueError, TypeError):
+            pass
 
     # Фильтрация по группе медцентров
     if selected_med_group:
@@ -461,15 +516,24 @@ def export_responses_to_excel(request, code):
         all_responses = all_responses.filter(responder_med__in=med_centers)
 
     # Фильтрация по конкретному медцентру
-    if selected_med_center:
-        all_responses = all_responses.filter(responder_med=selected_med_center)
+    if selected_med_center and selected_med_center.strip():
+        # Ensure exact match for med_center
+        all_responses = all_responses.filter(responder_med__exact=selected_med_center)
 
     # Фильтрация по датам
-    if date_from:
-        all_responses = all_responses.filter(createdAt__gte=date_from)
-    if date_to:
-        date_to = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
-        all_responses = all_responses.filter(createdAt__lt=date_to)
+    if date_from and date_from.strip():
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+            all_responses = all_responses.filter(createdAt__gte=date_from_obj)
+        except (ValueError, TypeError):
+            pass
+    
+    if date_to and date_to.strip():
+        try:
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+            all_responses = all_responses.filter(createdAt__lt=date_to_obj)
+        except (ValueError, TypeError):
+            pass
 
     # Применяем фильтры по выбранным вариантам ответов
     for question_id, selected_choices in filter_params.get('choices', {}).items():
@@ -533,8 +597,8 @@ def export_responses_to_excel(request, code):
     for question, question_id in question_headers.items():
         if f"question-{question_id}" not in hidden_columns:
             headers.append(question)
-    if "total-score" not in hidden_columns and formInfo.is_quiz:
-        headers.append("Total Score (Percentage)" if export_total_as_percentage else "Total Score")
+    # if "total-score" not in hidden_columns and formInfo.is_quiz:
+    #     headers.append("Total Score (Percentage)" if export_total_as_percentage else "Total Score")
 
     # Стили для заголовков
     header_font = Font(bold=True)
@@ -564,13 +628,13 @@ def export_responses_to_excel(request, code):
                 answer = response_answers[response.id].get(question_id, "N/A")
                 row_data[question] = answer
 
-        if "total-score" not in hidden_columns and formInfo.is_quiz:
-            total_score = calculate_score(response, formInfo)
-            if export_total_as_percentage:
-                total_percentage = (total_score / calculate_total_score(formInfo)) * 100
-                row_data["Total Score (Percentage)"] = f"{total_percentage:.2f}%"
-            else:
-                row_data["Total Score"] = total_score
+        # if "total-score" not in hidden_columns and formInfo.is_quiz:
+        #     total_score = calculate_score(response, formInfo)
+        #     if export_total_as_percentage:
+        #         total_percentage = (total_score / calculate_total_score(formInfo)) * 100
+        #         row_data["Total Score (Percentage)"] = f"{total_percentage:.2f}%"
+        #     else:
+        #         row_data["Total Score"] = total_score
 
         row = [row_data[col] for col in headers]
         for col_num, value in enumerate(row, 1):
@@ -801,9 +865,9 @@ def response(request, code, response_code):
         return HttpResponseRedirect(reverse('404'))
     else:
         formInfo = formInfo[0]
-    if not formInfo.allow_view_score:
-        if not request.user.is_staff:
-            return HttpResponseRedirect(reverse("403"))
+    # if not formInfo.allow_view_score:
+    #     if not request.user.is_staff:
+    #         return HttpResponseRedirect(reverse("403"))
 
     total_score = 0
     score = 0
@@ -813,48 +877,48 @@ def response(request, code, response_code):
     else:
         responseInfo = responseInfo[0]
 
-    if formInfo.is_quiz:
-        for question in formInfo.questions.all():
-            if question.question_type == "multiple choice":
-                max_choice_score = max([choice.scores for choice in question.choices.all()])
-                total_score += max_choice_score + question.score
-            elif question.question_type == "checkbox":
-                choices_total_score = sum([choice.scores for choice in question.choices.all()])
-                total_score += choices_total_score + question.score
-            else:
-                total_score += question.score
+    # if formInfo.is_quiz:
+    #     for question in formInfo.questions.all():
+    #         if question.question_type == "multiple choice":
+    #             max_choice_score = max([choice.scores for choice in question.choices.all()])
+    #             total_score += max_choice_score + question.score
+    #         elif question.question_type == "checkbox":
+    #             choices_total_score = sum([choice.scores for choice in question.choices.all()])
+    #             total_score += choices_total_score + question.score
+    #         else:
+    #             total_score += question.score
 
-        _temp = []
-        for response in responseInfo.response.all():
-            if response.answer_to.question_type in ["short", "paragraph"]:
-                if response.answer == response.answer_to.answer_key:
-                    score += response.answer_to.score
-            elif response.answer_to.question_type == "multiple choice":
-                answerKey = None
-                choice_score = 0
-                for choice in response.answer_to.choices.all():
-                    if choice.is_answer:
-                        answerKey = choice.id
-                    if choice.id == int(response.answer):
-                        choice_score = choice.scores
-                if answerKey is not None and int(answerKey) == int(response.answer):
-                    score += response.answer_to.score + choice_score
-            elif response.answer_to.question_type == "checkbox" and response.answer_to.pk not in _temp:
-                answers = []
-                answer_keys = []
-                choice_scores_sum = 0
-                selected_scores_sum = 0
-                for resp in responseInfo.response.filter(answer_to__pk=response.answer_to.pk):
-                    answers.append(int(resp.answer))
-                    for choice in resp.answer_to.choices.all():
-                        if choice.is_answer and choice.pk not in answer_keys:
-                            answer_keys.append(choice.pk)
-                        if choice.pk == int(resp.answer):
-                            selected_scores_sum += choice.scores
-                    _temp.append(response.answer_to.pk)
-                if set(answers) == set(answer_keys):
-                    score += response.answer_to.score
-                score += selected_scores_sum
+    #     _temp = []
+    #     for response in responseInfo.response.all():
+    #         if response.answer_to.question_type in ["short", "paragraph"]:
+    #             if response.answer == response.answer_to.answer_key:
+    #                 score += response.answer_to.score
+    #         elif response.answer_to.question_type == "multiple choice":
+    #             answerKey = None
+    #             choice_score = 0
+    #             for choice in response.answer_to.choices.all():
+    #                 if choice.is_answer:
+    #                     answerKey = choice.id
+    #                 if choice.id == int(response.answer):
+    #                     choice_score = choice.scores
+    #             if answerKey is not None and int(answerKey) == int(response.answer):
+    #                 score += response.answer_to.score + choice_score
+    #         elif response.answer_to.question_type == "checkbox" and response.answer_to.pk not in _temp:
+    #             answers = []
+    #             answer_keys = []
+    #             choice_scores_sum = 0
+    #             selected_scores_sum = 0
+    #             for resp in responseInfo.response.filter(answer_to__pk=response.answer_to.pk):
+    #                 answers.append(int(resp.answer))
+    #                 for choice in resp.answer_to.choices.all():
+    #                     if choice.is_answer and choice.pk not in answer_keys:
+    #                         answer_keys.append(choice.pk)
+    #                     if choice.pk == int(resp.answer):
+    #                         selected_scores_sum += choice.scores
+    #                 _temp.append(response.answer_to.pk)
+    #             if set(answers) == set(answer_keys):
+    #                 score += response.answer_to.score
+    #             score += selected_scores_sum
 
     return render(request, "index/form/response.html", {
         "form": formInfo,
@@ -862,6 +926,157 @@ def response(request, code, response_code):
         "score": score,
         "total_score": total_score
     })
+
+def calculate_final_scores(request, code):
+    final_scores = {}
+    active_forms = Form.objects.filter(is_active=True)
+    
+    # Получаем параметры фильтрации
+    selected_city = request.GET.get('cities')
+    selected_gender = request.GET.get('gender')
+    age_min = request.GET.get('age_min')
+    age_max = request.GET.get('age_max')
+    selected_med_region = request.GET.get('med_region')
+    selected_med_center = request.GET.get('med_center')
+    selected_med_group = request.GET.get('med_group')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    
+    for form in active_forms:
+        # Базовый запрос для каждой формы
+        responses = Responses.objects.filter(response_to=form)
+        
+        # Применяем фильтры
+        filters = Q()
+        if selected_city:
+            filters &= Q(responder_city=selected_city)
+        if selected_gender:
+            filters &= Q(responder_gender=selected_gender)
+        if age_min and age_min.strip():
+            try:
+                filters &= Q(responder_age__gte=int(age_min))
+            except (ValueError, TypeError):
+                pass
+        if age_max and age_max.strip():
+            try:
+                filters &= Q(responder_age__lte=int(age_max))
+            except (ValueError, TypeError):
+                pass
+        if selected_med_group:
+            med_centers = RegionMedCenter.objects.filter(group_id=selected_med_group).values_list('med_center', flat=True)
+            filters &= Q(responder_med__in=med_centers)
+        if selected_med_region:
+            med_centers = RegionMedCenter.objects.filter(region=selected_med_region).values_list('med_center', flat=True)
+            filters &= Q(responder_med__in=med_centers)
+        if selected_med_center and selected_med_center.strip():
+            filters &= Q(responder_med__exact=selected_med_center)
+        if date_from and date_from.strip():
+            try:
+                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+                filters &= Q(createdAt__gte=date_from_obj)
+            except (ValueError, TypeError):
+                pass
+        if date_to and date_to.strip():
+            try:
+                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+                filters &= Q(createdAt__lt=date_to_obj)
+            except (ValueError, TypeError):
+                pass
+        
+        # Применяем фильтры
+        responses = responses.filter(filters)
+        
+        average_scores = calculate_average_scores(responses, form)
+        
+        for med_center, data in average_scores.items():
+            if med_center not in final_scores:
+                final_scores[med_center] = {
+                    'forms': {},
+                    'total_score': 0,
+                    'negative_count': 0,
+                    'negative_percentage': 0
+                }
+            
+            if data['total_score'] is not None:
+                # Сохраняем процентное значение
+                final_scores[med_center]['forms'][form.title] = data['total_score']
+    
+    # Подсчет негативных ответов и их влияния
+    current_form = Form.objects.get(code=code)
+    
+    # Базовый запрос для текущей формы
+    current_responses = Responses.objects.filter(response_to=current_form)
+    
+    # Применяем фильтры
+    filters = Q()
+    if selected_city:
+        filters &= Q(responder_city=selected_city)
+    if selected_gender:
+        filters &= Q(responder_gender=selected_gender)
+    if age_min and age_min.strip():
+        try:
+            filters &= Q(responder_age__gte=int(age_min))
+        except (ValueError, TypeError):
+            pass
+    if age_max and age_max.strip():
+        try:
+            filters &= Q(responder_age__lte=int(age_max))
+        except (ValueError, TypeError):
+            pass
+    if selected_med_group:
+        med_centers = RegionMedCenter.objects.filter(group_id=selected_med_group).values_list('med_center', flat=True)
+        filters &= Q(responder_med__in=med_centers)
+    if selected_med_region:
+        med_centers = RegionMedCenter.objects.filter(region=selected_med_region).values_list('med_center', flat=True)
+        filters &= Q(responder_med__in=med_centers)
+    if selected_med_center and selected_med_center.strip():
+        filters &= Q(responder_med__exact=selected_med_center)
+    if date_from and date_from.strip():
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+            filters &= Q(createdAt__gte=date_from_obj)
+        except (ValueError, TypeError):
+            pass
+    if date_to and date_to.strip():
+        try:
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+            filters &= Q(createdAt__lt=date_to_obj)
+        except (ValueError, TypeError):
+            pass
+    
+    # Применяем фильтры
+    current_responses = current_responses.filter(filters)
+    
+    for med_center in final_scores:
+        negative_count = 0
+        total_forms = 0
+        total_percentage = 0
+        
+        # Подсчет негативных ответов
+        med_center_responses = current_responses.filter(responder_med=med_center)
+        for response in med_center_responses:
+            for answer in response.response.filter(answer_to__is_negative=True, answer='Да'):
+                negative_count += 1
+        
+        # Расчет среднего процента по всем формам
+        for score in final_scores[med_center]['forms'].values():
+            if score is not None:
+                total_percentage += score
+                total_forms += 1
+        
+        final_scores[med_center]['negative_count'] = negative_count
+        
+        # Расчет влияния негативных ответов
+        if total_forms > 0:
+            average_percentage = total_percentage / total_forms
+            negative_impact = negative_count * 5  # 5% за каждый негативный ответ
+            final_scores[med_center]['negative_percentage'] = min(negative_impact, 100)
+            final_scores[med_center]['total_score'] = max(0, round(average_percentage * (1 - negative_impact / 100), 2))
+        else:
+            final_scores[med_center]['total_score'] = 0
+            final_scores[med_center]['negative_percentage'] = 0
+    
+    return final_scores
 
 def export_final_scores(request, code):
     if not request.user.is_authenticated:
@@ -973,13 +1188,13 @@ def edit_response(request, code, response_code):
                 answer.save()
                 response.response.add(answer)
                 response.save()
-        if formInfo.is_quiz:
-            return HttpResponseRedirect(reverse("response", args=[formInfo.code, response.response_code]))
-        else:
-            return render(request, "index/form/form_response.html", {
-                "form": formInfo,
-                "code": response.response_code
-            })
+        # if formInfo.is_quiz:
+        #     return HttpResponseRedirect(reverse("response", args=[formInfo.code, response.response_code]))
+        # else:
+        return render(request, "index/form/form_response.html", {
+            "form": formInfo,
+            "response": response
+        })
     return render(request, "index/form/edit_response.html", {
         "form": formInfo,
         "response": response
@@ -1002,62 +1217,6 @@ def delete_responses(request, code):
             response.delete()
         return JsonResponse({"message": "Успешно"})
     
-
-def calculate_final_scores(request, code):
-    final_scores = {}
-    active_forms = Form.objects.filter(is_active=True)
-    
-    for form in active_forms:
-        responses = Responses.objects.filter(response_to=form)
-        average_scores = calculate_average_scores(responses, form)
-        
-        for med_center, data in average_scores.items():
-            if med_center not in final_scores:
-                final_scores[med_center] = {
-                    'forms': {},
-                    'total_score': 0,
-                    'negative_count': 0,
-                    'negative_percentage': 0
-                }
-            
-            if data['total_score'] is not None:
-                # Сохраняем процентное значение
-                final_scores[med_center]['forms'][form.title] = data['total_score']
-    
-    # Подсчет негативных ответов и их влияния
-    current_form = Form.objects.get(code=code)
-    current_responses = Responses.objects.filter(response_to=current_form)
-    
-    for med_center in final_scores:
-        negative_count = 0
-        total_forms = 0
-        total_percentage = 0
-        
-        # Подсчет негативных ответов
-        med_center_responses = current_responses.filter(responder_med=med_center)
-        for response in med_center_responses:
-            for answer in response.response.filter(answer_to__is_negative=True, answer='Да'):
-                negative_count += 1
-        
-        # Расчет среднего процента по всем формам
-        for score in final_scores[med_center]['forms'].values():
-            if score is not None:
-                total_percentage += score
-                total_forms += 1
-        
-        final_scores[med_center]['negative_count'] = negative_count
-        
-        # Расчет влияния негативных ответов
-        if total_forms > 0:
-            average_percentage = total_percentage / total_forms
-            negative_impact = negative_count * 5  # 5% за каждый негативный ответ
-            final_scores[med_center]['negative_percentage'] = min(negative_impact, 100)
-            final_scores[med_center]['total_score'] = max(0, round(average_percentage * (1 - negative_impact / 100), 2))
-        else:
-            final_scores[med_center]['total_score'] = 0
-            final_scores[med_center]['negative_percentage'] = 0
-    
-    return final_scores
 
 @csrf_exempt
 def check_question_has_answers(request, question_id):
@@ -1112,14 +1271,14 @@ def load_responses(request, code):
         }
 
         # Add profile image if exists
-        if response.responder and hasattr(response.responder, 'image_info'):
-            profile_image = response.responder.image_info.first()
+        if response.responder and hasattr(response.responder, 'images'):
+            profile_image = response.responder.images.first()
             if profile_image and profile_image.image:
                 data['profile_image'] = profile_image.image.url
 
         # Add score if form is quiz
-        if formInfo.is_quiz:
-            data['score'] = f"{calculate_score(response, formInfo)} / {calculate_total_score(formInfo)}"
+        # if formInfo.is_quiz:
+        #     data['score'] = f"{calculate_score(response, formInfo)} / {calculate_total_score(formInfo)}"
 
         response_data.append(data)
 
@@ -1133,14 +1292,19 @@ def search_responses(request, code):
         return JsonResponse({'error': 'Unauthorized'}, status=401)
 
     formInfo = get_object_or_404(Form, code=code)
-    search_term = request.GET.get('term', '').lower()
-
-    # Get filtered responses
+    
+    # Получаем поисковый запрос, не преобразуя его в нижний регистр,
+    # так как Django's icontains сам обрабатывает регистр
+    search_term = request.GET.get('term', '')
+    
+    # Логирование для отладки
+    print(f"Search term received: '{search_term}'")
+    
+    # Get filtered responses - только по имени пользователя
     responses = Responses.objects.filter(
         response_to=formInfo
     ).filter(
-        Q(responder_username__icontains=search_term) |
-        Q(response_code__icontains=search_term)
+        responder_username__icontains=search_term
     ).select_related(
         'responder'
     ).prefetch_related(
@@ -1148,6 +1312,13 @@ def search_responses(request, code):
         'response__answer_to',
         'response__answer_to__choices'
     ).order_by('-createdAt')
+    
+    # Логирование количества найденных результатов
+    print(f"Found {responses.count()} results for '{search_term}'")
+    
+    # Логирование первых результатов для проверки
+    for i, resp in enumerate(responses[:5]):
+        print(f"Result {i+1}: '{resp.responder_username}'")
 
     # Format response data
     response_data = []
@@ -1161,14 +1332,13 @@ def search_responses(request, code):
         }
 
         # Add profile image if exists
-        if response.responder and hasattr(response.responder, 'image_info'):
-            profile_image = response.responder.image_info.first()
+        if response.responder and hasattr(response.responder, 'images'):
+            profile_image = response.responder.images.first()
             if profile_image and profile_image.image:
                 data['profile_image'] = profile_image.image.url
 
-        # Add score if form is quiz
-        if formInfo.is_quiz:
-            data['score'] = f"{calculate_score(response, formInfo)} / {calculate_total_score(formInfo)}"
+        # if formInfo.is_quiz:
+        #     data['score'] = f"{calculate_score(response, formInfo)} / {calculate_total_score(formInfo)}"
 
         response_data.append(data)
 
@@ -1183,7 +1353,18 @@ def load_table_data(request, code):
         page = int(request.GET.get('page', 1))
         per_page = int(request.GET.get('per_page', 20))
 
-        # Get all responses with prefetch_related
+        # Получаем параметры фильтрации из запроса
+        selected_city = request.GET.get('cities')
+        selected_gender = request.GET.get('gender')
+        age_min = request.GET.get('age_min')
+        age_max = request.GET.get('age_max')
+        selected_med_region = request.GET.get('med_region')
+        selected_med_center = request.GET.get('med_center')
+        selected_med_group = request.GET.get('med_group')
+        date_from = request.GET.get('date_from')
+        date_to = request.GET.get('date_to')
+        
+        # Базовый запрос
         responses = Responses.objects.filter(response_to=formInfo).select_related(
             'responder'
         ).prefetch_related(
@@ -1191,6 +1372,63 @@ def load_table_data(request, code):
             'response__answer_to',
             'response__answer_to__choices'
         ).order_by('-createdAt')
+        
+        # Применяем фильтры с использованием Q objects для оптимизации
+        filters = Q()
+        if selected_city:
+            filters &= Q(responder_city=selected_city)
+        if selected_gender:
+            filters &= Q(responder_gender=selected_gender)
+        if age_min and age_min.strip():
+            try:
+                filters &= Q(responder_age__gte=int(age_min))
+            except (ValueError, TypeError):
+                pass
+        if age_max and age_max.strip():
+            try:
+                filters &= Q(responder_age__lte=int(age_max))
+            except (ValueError, TypeError):
+                pass
+        if selected_med_group:
+            med_centers = RegionMedCenter.objects.filter(group_id=selected_med_group).values_list('med_center', flat=True)
+            filters &= Q(responder_med__in=med_centers)
+        if selected_med_region:
+            med_centers = RegionMedCenter.objects.filter(region=selected_med_region).values_list('med_center', flat=True)
+            filters &= Q(responder_med__in=med_centers)
+        if selected_med_center and selected_med_center.strip():
+            filters &= Q(responder_med__exact=selected_med_center)
+        if date_from and date_from.strip():
+            try:
+                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+                filters &= Q(createdAt__gte=date_from_obj)
+            except (ValueError, TypeError):
+                pass
+        if date_to and date_to.strip():
+            try:
+                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+                filters &= Q(createdAt__lt=date_to_obj)
+            except (ValueError, TypeError):
+                pass
+        
+        # Применяем фильтры по выбранным вариантам ответов
+        for key, value in request.GET.items():
+            if key.startswith('question-') and value:
+                question_id = key.replace('question-', '')
+                try:
+                    question = Questions.objects.get(id=question_id)
+                    if question.question_type in ["multiple choice", "checkbox"]:
+                        choice_ids = request.GET.getlist(key)
+                        if choice_ids:
+                            answers = Answer.objects.filter(
+                                answer_to=question,
+                                answer__in=choice_ids
+                            )
+                            response_ids = answers.values_list('response_id', flat=True)
+                            filters &= Q(id__in=response_ids)
+                except Questions.DoesNotExist:
+                    pass
+
+        responses = responses.filter(filters)
 
         # Create paginator
         paginator = Paginator(responses, per_page)
@@ -1226,8 +1464,76 @@ def load_med_centers_data(request, code):
         page = int(request.GET.get('page', 1))
         per_page = int(request.GET.get('per_page', 20))
 
-        # Get filtered responses
+        # Получаем параметры фильтрации из запроса
+        selected_city = request.GET.get('cities')
+        selected_gender = request.GET.get('gender')
+        age_min = request.GET.get('age_min')
+        age_max = request.GET.get('age_max')
+        selected_med_region = request.GET.get('med_region')
+        selected_med_center = request.GET.get('med_center')
+        selected_med_group = request.GET.get('med_group')
+        date_from = request.GET.get('date_from')
+        date_to = request.GET.get('date_to')
+        
+        # Базовый запрос
         responses = Responses.objects.filter(response_to=formInfo)
+        
+        # Применяем фильтры с использованием Q objects для оптимизации
+        filters = Q()
+        if selected_city:
+            filters &= Q(responder_city=selected_city)
+        if selected_gender:
+            filters &= Q(responder_gender=selected_gender)
+        if age_min and age_min.strip():
+            try:
+                filters &= Q(responder_age__gte=int(age_min))
+            except (ValueError, TypeError):
+                pass
+        if age_max and age_max.strip():
+            try:
+                filters &= Q(responder_age__lte=int(age_max))
+            except (ValueError, TypeError):
+                pass
+        if selected_med_group:
+            med_centers = RegionMedCenter.objects.filter(group_id=selected_med_group).values_list('med_center', flat=True)
+            filters &= Q(responder_med__in=med_centers)
+        if selected_med_region:
+            med_centers = RegionMedCenter.objects.filter(region=selected_med_region).values_list('med_center', flat=True)
+            filters &= Q(responder_med__in=med_centers)
+        if selected_med_center and selected_med_center.strip():
+            filters &= Q(responder_med__exact=selected_med_center)
+        if date_from and date_from.strip():
+            try:
+                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+                filters &= Q(createdAt__gte=date_from_obj)
+            except (ValueError, TypeError):
+                pass
+        if date_to and date_to.strip():
+            try:
+                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+                filters &= Q(createdAt__lt=date_to_obj)
+            except (ValueError, TypeError):
+                pass
+        
+        # Применяем фильтры по выбранным вариантам ответов
+        for key, value in request.GET.items():
+            if key.startswith('question-') and value:
+                question_id = key.replace('question-', '')
+                try:
+                    question = Questions.objects.get(id=question_id)
+                    if question.question_type in ["multiple choice", "checkbox"]:
+                        choice_ids = request.GET.getlist(key)
+                        if choice_ids:
+                            answers = Answer.objects.filter(
+                                answer_to=question,
+                                answer__in=choice_ids
+                            )
+                            response_ids = answers.values_list('response_id', flat=True)
+                            filters &= Q(id__in=response_ids)
+                except Questions.DoesNotExist:
+                    pass
+
+        responses = responses.filter(filters)
         
         # Calculate average scores
         average_scores = calculate_average_scores(responses, formInfo)
@@ -1275,8 +1581,49 @@ def load_total_scores_data(request, code):
         page = int(request.GET.get('page', 1))
         per_page = int(request.GET.get('per_page', 20))
 
+        # Получаем параметры фильтрации из запроса
+        selected_city = request.GET.get('cities')
+        selected_gender = request.GET.get('gender')
+        age_min = request.GET.get('age_min')
+        age_max = request.GET.get('age_max')
+        selected_med_region = request.GET.get('med_region')
+        selected_med_center = request.GET.get('med_center')
+        selected_med_group = request.GET.get('med_group')
+        date_from = request.GET.get('date_from')
+        date_to = request.GET.get('date_to')
+        
+        # Сохраняем параметры фильтрации во временном словаре для calculate_final_scores
+        filter_params = {
+            'cities': selected_city,
+            'gender': selected_gender,
+            'age_min': age_min,
+            'age_max': age_max,
+            'med_region': selected_med_region,
+            'med_center': selected_med_center,
+            'med_group': selected_med_group,
+            'date_from': date_from,
+            'date_to': date_to
+        }
+        
+        # Сохраняем параметры в request для использования в calculate_final_scores
+        request.GET = request.GET.copy()
+        for key, value in filter_params.items():
+            if value:
+                request.GET[key] = value
+
         # Calculate final scores
         final_scores = calculate_final_scores(request, code)
+        
+        # Фильтрация по медцентрам
+        if selected_med_center:
+            final_scores = {k: v for k, v in final_scores.items() if k == selected_med_center}
+        if selected_med_region:
+            med_centers = RegionMedCenter.objects.filter(region=selected_med_region).values_list('med_center', flat=True)
+            final_scores = {k: v for k, v in final_scores.items() if k in med_centers}
+        if selected_med_group:
+            med_centers = RegionMedCenter.objects.filter(group_id=selected_med_group).values_list('med_center', flat=True)
+            final_scores = {k: v for k, v in final_scores.items() if k in med_centers}
+        
         final_scores_list = sorted(
             final_scores.items(),
             key=lambda x: x[1]['total_score'] if x[1]['total_score'] is not None else -1,
@@ -1461,8 +1808,40 @@ def load_analytics_data(request, code):
         }
         
     elif data_type == 'range_slider':
+        # For range slider data, we want to show the full year of data
+        # but only for medical centers that match the other filters
+        # We need to create a new queryset that ignores date filters
+        
+        # Get all filter parameters except dates
+        selected_city = request.GET.get('cities')
+        selected_gender = request.GET.get('gender')
+        age_min = request.GET.get('age_min')
+        age_max = request.GET.get('age_max')
+        selected_med_region = request.GET.get('med_region')
+        selected_med_center = request.GET.get('med_center')
+        selected_med_group = request.GET.get('med_group')
+        
+        # Create a new queryset without date filters
+        responses_without_date_filters = get_filtered_responses(
+            formInfo, 
+            age_min, 
+            age_max, 
+            selected_gender, 
+            [selected_city] if selected_city else None,
+            selected_med_center
+        )
+        
+        # Apply med_center filters if needed
+        if selected_med_group:
+            med_centers = RegionMedCenter.objects.filter(group_id=selected_med_group).values_list('med_center', flat=True)
+            responses_without_date_filters = responses_without_date_filters.filter(responder_med__in=med_centers)
+        
+        if selected_med_region:
+            med_centers = RegionMedCenter.objects.filter(region=selected_med_region).values_list('med_center', flat=True)
+            responses_without_date_filters = responses_without_date_filters.filter(responder_med__in=med_centers)
+        
         data = {
-            'range_slider_data': get_range_slider_data(formInfo, all_responses),
+            'range_slider_data': get_range_slider_data(formInfo, responses_without_date_filters),
         }
         
     elif data_type == 'final_scores':
@@ -1503,22 +1882,36 @@ def get_filtered_responses_queryset(request, formInfo):
         filters &= Q(responder_city=selected_city)
     if selected_gender:
         filters &= Q(responder_gender=selected_gender)
-    if age_min:
-        filters &= Q(responder_age__gte=int(age_min))
-    if age_max:
-        filters &= Q(responder_age__lte=int(age_max))
+    if age_min and age_min.strip():
+        try:
+            filters &= Q(responder_age__gte=int(age_min))
+        except (ValueError, TypeError):
+            pass
+    if age_max and age_max.strip():
+        try:
+            filters &= Q(responder_age__lte=int(age_max))
+        except (ValueError, TypeError):
+            pass
     if selected_med_group:
         med_centers = RegionMedCenter.objects.filter(group_id=selected_med_group).values_list('med_center', flat=True)
         filters &= Q(responder_med__in=med_centers)
     if selected_med_region:
         med_centers = RegionMedCenter.objects.filter(region=selected_med_region).values_list('med_center', flat=True)
         filters &= Q(responder_med__in=med_centers)
-    if selected_med_center:
-        filters &= Q(responder_med=selected_med_center)
-    if date_from:
-        filters &= Q(createdAt__gte=date_from)
-    if date_to:
-        date_to = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
-        filters &= Q(createdAt__lt=date_to)
+    if selected_med_center and selected_med_center.strip():
+        # Ensure exact match for med_center
+        filters &= Q(responder_med__exact=selected_med_center)
+    if date_from and date_from.strip():
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+            filters &= Q(createdAt__gte=date_from_obj)
+        except (ValueError, TypeError):
+            pass
+    if date_to and date_to.strip():
+        try:
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+            filters &= Q(createdAt__lt=date_to_obj)
+        except (ValueError, TypeError):
+            pass
         
     return all_responses.filter(filters)

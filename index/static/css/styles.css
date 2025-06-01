@@ -22,7 +22,7 @@ body {
     font-family: "Product Sans", sans-serif;
     background-color: #F7F8FA;
     color: #000000;
-    border: 1px solid #cfcfcf;
+    border: 1px solid #ccc;
     margin: 10px;
     border-radius: 6px;
     transition: all 0.3s ease;
@@ -36,7 +36,7 @@ body {
     font-family: "Product Sans", sans-serif;
     background-color: #F7F8FA;
     color: #000000;
-    border: 1px solid #000000;
+    border: 1px solid #ccc;
     margin: 10px;
     border-radius: 6px;
     transition: all 0.3s ease;}
@@ -304,7 +304,8 @@ table {
 .table-field legend:hover {
     background-color: #eaeaea;}
 .table-field legend::after {
-    content: '▼';
+    content: '\f282';
+    font-family: 'bootstrap-icons';
     margin-left: 10px;
     font-size: 0.8em;
     transition: transform 0.3s ease;}
@@ -507,18 +508,13 @@ html::-webkit-scrollbar {
     display: none;}
 .question-box:not(.editing) .edit-choice {
     border: none;
-    pointer-events: none;
     background: transparent;}
 .question-box:not(.editing) .input-question {
-    pointer-events: none;
     font-size: 1.1rem;
     margin-bottom: 8px;}
 .question-box:not(.editing) input[type="radio"],
-.question-box:not(.editing) input[type="checkbox"] {
-    pointer-events: none;}
 .question-box:not(.editing) .answers input,
 .question-box:not(.editing) .answers textarea {
-    pointer-events: none;
     background: #ffffff;}
 .question-box.editing {
     padding: 24px;}
@@ -569,13 +565,22 @@ html::-webkit-scrollbar {
     background-color: #104CB8;
     cursor: pointer;
     width: 200px;}
+.response-info {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #ffffff;
+    border-radius: 5px;
+    color: #000000;
+    font-family: "Inter", sans-serif;
+}
 .form-title{
     font-size: 2rem;
     font-family: "Jost", sans-serif;
     font-weight: normal;
     margin: 10px;
     width: -webkit-fill-available;
-    width: -moz-available;}
+    width: -moz-available;
+    color: #000000;}
 .form-description {
     font-size: 1rem;
     font-family: "Inter", sans-serif;
@@ -628,7 +633,7 @@ html::-webkit-scrollbar {
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
     padding: 20px !important;
     margin: 15px 0 !important;
-    max-height: 50vh !important;
+    max-height: 35vh !important;
     border: 1px solid #eaeaea;}
 #responses p {
     margin: 12px 0;
@@ -982,6 +987,7 @@ html::-webkit-scrollbar {
     font-size: 14px;
     margin: 5px 8px;
     transition: all 0.3s ease;
+    max-width: 150px;
     background-color: #fff;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);}
 .filter-date:hover {
@@ -1650,7 +1656,6 @@ code, pre {
     border-radius: 10px;
     background-color: #fff;
     margin-bottom: 15px;
-    width: auto;
     min-width: 180px;
     cursor: pointer;
     display: inline-block;
@@ -1909,14 +1914,6 @@ code, pre {
     color: #555;}
 .date-input-wrapper {
     position: relative;}
-.date-input-wrapper i {
-    position: absolute;
-    left: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #1669FF;
-    font-size: 16px;
-    pointer-events: none;}
 .filter-date {
     width: 100%;
     padding: 12px 15px 12px 45px;
@@ -1927,8 +1924,6 @@ code, pre {
 .filter-date::-webkit-calendar-picker-indicator {
     opacity: 0.7;
     cursor: pointer;}
-.filter-date:hover {
-    border-color: #1669FF;}
 .filter-date:focus {
     outline: none;
     border-color: #1669FF;
@@ -2096,6 +2091,201 @@ code, pre {
     color: #212529;
     font-size: 0.95em; /* Using em for relative sizing */}
 
+/* Compact filter layout styles */
+.compact-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 12px;
+}
+
+.compact-card {
+    margin-bottom: 0;
+    transition: all 0.2s ease;
+}
+
+.compact-card .filter-card-header {
+    padding: 10px 15px;
+}
+
+.compact-card .filter-card-header h3 {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.compact-card .filter-card-body {
+    padding: 12px;
+}
+
+.compact-card .filter-select {
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+.compact-card .gender-options {
+    gap: 6px;
+}
+
+.compact-card .gender-option {
+    padding: 8px 3px;
+    min-width: 60px;
+}
+
+.compact-card .gender-icon {
+    font-size: 18px;
+}
+
+.compact-card .age-inputs {
+    gap: 10px;
+}
+
+.compact-card .age-input {
+    padding: 8px 10px;
+}
+
+.compact-card .age-presets,
+.compact-card .date-presets {
+    gap: 5px;
+}
+
+.compact-card .age-preset,
+.compact-card .date-preset {
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+.compact-card .filter-date {
+    padding: 8px 10px 8px 35px;
+    font-size: 13px;
+}
+
+@media screen and (max-width: 768px) {
+    .compact-grid {
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    }
+}
+
+/* Improved button styles */
+.btn {
+    display: inline-block;
+    font-weight: 500;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
+    user-select: none;
+    border: 1px solid transparent;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    font-family: "Jost", sans-serif;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.btn-submit {
+    background-color: #1669FF;
+    color: white;
+    border: none;
+    margin: 10px 5px;
+}
+
+.btn-submit:hover {
+    background-color: #104CB8;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    margin: 10px 5px;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    margin: 10px 5px;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+}
+
+.btn-success {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    margin: 10px 5px;
+}
+
+.btn-success:hover {
+    background-color: #218838;
+}
+
+.btn-outline {
+    background-color: transparent;
+    border: 2px solid #1669FF;
+    color: #1669FF;
+}
+
+.btn-outline:hover {
+    background-color: #1669FF;
+    color: white;
+}
+
+.btn-lg {
+    padding: 1rem 2rem;
+    font-size: 1.25rem;
+    border-radius: 10px;
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    border-radius: 6px;
+}
+
+.btn-block {
+    display: block;
+    width: 100%;
+}
+
+.btn-group {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-icon i {
+    font-size: 1.1em;
+}
+
+/* Med center selection styles */
+.med-center-selection {
+    padding: 10px 0;
+}
 @media only screen and (max-width: 430px){
     .float-right{
         float: left;

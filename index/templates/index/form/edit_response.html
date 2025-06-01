@@ -28,11 +28,6 @@
         {% endif %}
         {% for question in form.questions.all %}
         <div class="margin-top-bottom box question-box">
-            {% if form.is_quiz %}
-            <h1 class="question-title txtClr">{{question.question}} {% if question.required %}<span class="require-star">*</span>{% endif %}</h1>
-            {% else %}
-            <h1 class="question-title txtClr" oncopy = "return false">{{question.question}} {% if question.required %}<span class="require-star">*</span>{% endif %}</h1>
-            {% endif %}
             {% if question.question_type == "short" %}
                 <input type="text" name="{{question.id}}" class="short-answer" placeholder = "Ваш ответ" {% if question.required %} required {% endif %}
                 value="{{response|get_response:question.pk}}">

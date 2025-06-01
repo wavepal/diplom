@@ -18,16 +18,13 @@
         <div class="margin-top-bottom box question-box">
             <div class="form-title-box">
                 <h1 class="form-title txtClr">{{form.title}}</h1>
-                {% if form.is_quiz %}
-                    <h4 class="score-title">Баллы: {{ response|calculate_score:form }} / {{ form|calculate_total_score }}</h4>
-                {% endif %}
             </div>
             <div class="form-description txtClr">{{form.description|linebreaksbr}}</div>
         </div>
         {% if response.authenticated_responder %}
             <div class="margin-top-bottom box question-box">
                 <a class="question-title txtClr" href="{% url 'user_detail' response.responder.pk %}" style="text-decoration: none; display: flex; align-items: center;">
-                    {% with profile_image=user.image_info.first %}
+                    {% with profile_image=user.images.first %}
                         {% if profile_image and profile_image.image %}
                             <img id="profileImage" src="{{ profile_image.image.url }}" alt="Фото профиля" width="25" height="25" style="border-radius: 50%; margin-right: 10px;">
                         {% else %}
@@ -47,11 +44,6 @@
         {% for question in form.questions.all %}
         <div class="margin-top-bottom box question-box">
             <h1 class="response-title txtClr">{{question.question}} {% if question.required %}<span class="require-star">*</span>{% endif %}
-                {% if form.is_quiz %}
-                    <span class="float-right">
-                        {{ response|total_score:question }} / {{ question|total_possible_score }}
-                    </span>
-                {% endif %}
             </h1>
             {% if question.question_type == "short" %}
                 <p class="short-answer">{% if response|get_response:question.pk %}{{response|get_response:question.pk}} {% else %} <a class="score-title">Нет ответа.</a> {% endif %}</p>
@@ -77,9 +69,6 @@
                             <input type="radio" name="{{question.id}}" id="{{choice.id}}" disabled>
                         {% endif %}
                         <label for="{{choice.id}}" class="txtClr">{{choice.choice}}</label>
-                        {% if form.is_quiz %}
-                            <label for="{{choice.id}}" class="txtClr">- {{ choice.scores }} баллов.</label>
-                        {% endif %}
                     {% endif %}
                 </div>
                 {% endfor %}
@@ -91,19 +80,9 @@
                     {% else %}
                         <input type="checkbox" name="{{question.id}}" id="{{choice.id}}" value="{{choice.id}}" disabled>
                     {% endif %}
-                    <label for="{{choice.id}}" class="txtClr">{{choice.choice}}</label>
-                    {% if form.is_quiz %}
-                        <label for="{{choice.id}}" class="txtClr">- {{ choice.scores }} баллов.</label>
-                    {% endif %}               
+                    <label for="{{choice.id}}" class="txtClr">{{choice.choice}}</label>       
                 </div>
                 {% endfor %}
-            {% endif %}
-            {% if question.score != 0 and form.is_quiz %}
-                <h1 class="score-title txtClr">
-                    <span>
-                        {{ question.score }} баллов за правильный ответ.
-                    </span>
-                </h1>
             {% endif %}
             {% if user != form.creator and question.feedback != None and question.feedback != "" %}
                 <div class="feedback">

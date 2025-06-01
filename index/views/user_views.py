@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseRedirect
 from django.urls import reverse
-from index.models import RegionMedCenter, User, DateOfBirth, UserGender, Image, UserDesc, UserCity, UserMed, UserRole
+from index.models import User, Image, RegionMedCenter, CITY_CHOICES, ROLE_CHOICES
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.shortcuts import render, redirect
@@ -21,19 +21,17 @@ def update_user_status(request, user_id):
     if request.method == 'POST':
         role = request.POST.get('role')
         
-        # Получаем или создаем объект роли для пользователя
-        user_role, created = UserRole.objects.get_or_create(user=user)
-        
-        # Обновляем роль в зависимости от выбора
-        if role in [UserRole.ADMIN, UserRole.TRAINER, UserRole.MANAGER, UserRole.USER]:
-            user_role.role = role
-            user_role.save()
+        # Проверяем, что роль допустима
+        valid_roles = [choice[0] for choice in ROLE_CHOICES]
+        if role in valid_roles:
+            # Обновляем роль пользователя напрямую
+            user.role = role
             
             # Обновляем статус суперпользователя и персонала
-            if role == UserRole.ADMIN:
+            if role == 'ADMIN':
                 user.is_superuser = True
                 user.is_staff = True
-            elif role in [UserRole.TRAINER, UserRole.MANAGER]:
+            elif role in ['TRAINER', 'MANAGER']:
                 user.is_superuser = False
                 user.is_staff = True
             else:
@@ -44,21 +42,17 @@ def update_user_status(request, user_id):
         
         return redirect(reverse('user_detail', args=[user.id]))
 
-    # Получаем текущую роль пользователя для отображения в форме
-    current_role = UserRole.objects.filter(user=user).first()
-    
     return render(request, 'index/user/user_detail.html', {
         'user': user,
-        'current_role': current_role.role if current_role else UserRole.USER
+        'current_role': user.role
     })
 
 
 def change_desc(request):
     if request.method == 'POST':
         new_desc = request.POST.get('desc')  
-        user_desc, created = UserDesc.objects.get_or_create(user=request.user)
-        user_desc.desc = new_desc
-        user_desc.save()
+        request.user.description = new_desc
+        request.user.save()
 
         return redirect('edit_profile')  
 
@@ -67,58 +61,26 @@ def change_desc(request):
 
 
 def change_date_of_birth(request):
-    try:
-        user_date_of_birth = request.user.dateofbirth
-    except DateOfBirth.DoesNotExist:
-        user_date_of_birth = DateOfBirth(user=request.user, date_of_birth=None)
-        user_date_of_birth.save()
-
-    try:
-        if request.method == 'POST':
-            new_date_of_birth = request.POST.get('date_of_birth', None)
-
-            if request.user.dateofbirth.id != user_date_of_birth.id:
-                return HttpResponseForbidden("You do not have permission to perform this action.")
-
-            user_date_of_birth.date_of_birth = new_date_of_birth
-            user_date_of_birth.save()
-            return redirect('edit_profile')
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return redirect('404') 
+    if request.method == 'POST':
+        new_date_of_birth = request.POST.get('date_of_birth', None)
+        request.user.date_of_birth = new_date_of_birth
+        request.user.save()
+        return redirect('edit_profile')
 
     context = {'user': request.user}
     return render(request, 'index/user/user_profile.html', context)
 
 def delete_date_of_birth(request):
-    user = request.user
-    try:
-        user_date_of_birth = DateOfBirth.objects.get(user=user)
-        user_date_of_birth.delete()
-        return redirect('edit_profile')
-    except DateOfBirth.DoesNotExist:
-        return HttpResponse("Date of Birth not found", status=404)
+    request.user.date_of_birth = None
+    request.user.save()
+    return redirect('edit_profile')
 
 @login_required
 def change_gender(request):
-    # Проверяем, имеет ли пользователь профиль с гендером
-    try:
-        user_gender = request.user.usergender
-    except UserGender.DoesNotExist:
-
-        user_gender = UserGender(user=request.user, gender='O')
-        user_gender.save()
-
     if request.method == 'POST':
-
         new_gender = request.POST.get('gender', 'O')
-
-        if request.user.usergender.id != user_gender.id:
-            return HttpResponseForbidden("You do not have permission to perform this action.")
-
-        user_gender.gender = new_gender
-        user_gender.save()
+        request.user.gender = new_gender
+        request.user.save()
         return redirect('edit_profile')
 
     context = {'user': request.user}
@@ -193,9 +155,7 @@ def user_detail(request, pk):
     if not request.user.is_authenticated:
         return HttpResponseRedirect(reverse("login"))
     context = {
-        'user_city': UserCity.objects.get_or_create(user=user)[0],
-        'user_med': UserMed.objects.get_or_create(user=user)[0],
-        'city_choices': UserCity.CITY_CHOICES,
+        'city_choices': CITY_CHOICES,
         'med_centers': RegionMedCenter.objects.all().order_by('region', 'med_center'),
         'user': user
     }
@@ -209,15 +169,12 @@ def edit_profile(request):
     if request.method == 'POST':
         new_city = request.POST.get('City')
         if new_city is not None:
-            user_city, created = UserCity.objects.get_or_create(user=request.user)
-            user_city.city = new_city
-            user_city.save()
+            request.user.city = new_city
+            request.user.save()
             return redirect('edit_profile')
 
     context = {
-        'user_city': UserCity.objects.get_or_create(user=request.user)[0],
-        'user_med': UserMed.objects.get_or_create(user=request.user)[0],
-        'city_choices': UserCity.CITY_CHOICES
+        'city_choices': CITY_CHOICES
     }
     return render(request, 'index/user/user_profile.html', context)
 

@@ -19,7 +19,7 @@
         <!-- Карточка профиля -->
         <div class="profile-card">
             <div class="profile-image-container">
-                {% with profile_image=user.image_info.first %}
+                {% with profile_image=user.images.first %}
                     {% if profile_image.image %}
                         <img id="profileImage" src="{{ profile_image.image.url }}" alt="Фото профиля">
                     {% else %}
@@ -70,7 +70,7 @@
                         <i class="bi bi-hospital"></i>
                         <div>
                             <span class="info-label">Медцентр:</span>
-                            <span class="info-value">{% if user.med_info and user.med_info.med_center %}{{ user.med_info.med_center }}{% else %}Не указано{% endif %}</span>
+                            <span class="info-value">{% if user.med_center %}{{ user.med_center }}{% else %}Не указано{% endif %}</span>
                         </div>
                     </div>
                     
@@ -101,10 +101,10 @@
                     </div>
                 </div>
                 
-                {% if user.desc_info %}
+                {% if user.description %}
                 <div class="profile-about">
                     <h3><i class="bi bi-file-text"></i> О себе</h3>
-                    <p>{{ user.desc_info.desc }}</p>
+                    <p>{{ user.description }}</p>
                 </div>
                 {% endif %}
             </div>
@@ -155,7 +155,7 @@
                                     <optgroup label="{{ region.grouper }}">
                                         {% for center in region.list %}
                                             <option value="{{ center.med_center }}" 
-                                                {% if user.med_info.med_center == center.med_center %}selected{% endif %}>
+                                                {% if user.med_center == center.med_center %}selected{% endif %}>
                                                 {{ center.med_center }}
                                             </option>
                                         {% endfor %}

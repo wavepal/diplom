@@ -7,14 +7,6 @@
             <i class="bi bi-question-circle"></i>
             <span>Вопросы</span>
         </button>
-        {% if form.is_quiz %}
-        <button class="sidebar-btn {% if active_tab == 'score' %}active{% endif %}" 
-                onclick="window.location.href='{% url 'score' form.code %}'" 
-                title="Оценка">
-            <i class="bi bi-star"></i>
-            <span>Оценка</span>
-        </button>
-        {% endif %}
         <button class="sidebar-btn {% if active_tab == 'responses' %}active{% endif %}" 
                 onclick="window.location.href='{% url 'responses' form.code %}'" 
                 title="Ответы">

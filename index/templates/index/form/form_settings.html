@@ -28,10 +28,10 @@
                         <label class="form-check-label" for="collect_email">Сбор E-mail адресов</label>
                     </div>
                     
-                    <div class="form-check">
+                    <!-- <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="is_quiz" {% if form.is_quiz %} checked {% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
                         <label class="form-check-label" for="is_quiz">Преобразовать в тест</label>
-                    </div>
+                    </div> -->
                     
                     <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="authenticated_responder" {% if form.authenticated_responder %} checked {% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
@@ -48,14 +48,19 @@
                         <label class="form-check-label" for="submit_limit">Возможность ответить только один раз авторизованным пользователям</label>
                     </div>
                     
-                    <div class="form-check">
+                    <!-- <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="is_single_form" {% if form.is_single_form %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
                         <label class="form-check-label" for="is_single_form">Доступ в телеграм-боте</label>
-                    </div>
+                    </div> -->
                     
                     <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="is_active" {% if form.is_active %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
                         <label class="form-check-label" for="is_active">Учитывать в общей оценке</label>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="allow_med_center_choice" {% if form.allow_med_center_choice %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <label class="form-check-label" for="allow_med_center_choice">Разрешить пользователям выбирать медцентр</label>
                     </div>
                 </div>
                 
@@ -67,10 +72,10 @@
                         <label class="form-check-label" for="edit_after_submit">Вносить изменения после отправки</label>
                     </div>
                     
-                    <div class="form-check">
+                    <!-- <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="allow_view_score" {% if form.allow_view_score %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
                         <label class="form-check-label" for="allow_view_score">Просмотреть свои оценки</label>
-                    </div>
+                    </div> -->
                 </div>
                 
                 <div class="settings-section">
@@ -79,8 +84,8 @@
                 </div>
                 
                 <div class="form-actions">
-                    <button type="submit" class="save-btn">Сохранить</button>
-                    <button type="button" class="delete-btn" id="delete-button">Удалить форму</button>
+                    <button type="submit" class="btn btn-submit">Сохранить</button>
+                    <button type="button" class="btn btn-danger" id="delete-button">Удалить форму</button>
                 </div>
             </form>
         </div>
@@ -94,25 +99,48 @@ document.addEventListener("DOMContentLoaded", () => {
     
     document.querySelector("#setting-form").addEventListener("submit", e => {
         e.preventDefault();
+        
+        // Create the data object with safe property access
+        const data = {
+            "collect_email": document.querySelector("#collect_email")?.checked || false,
+            "authenticated_responder": document.querySelector("#authenticated_responder")?.checked || false,
+            "confirmation_message": document.querySelector("#comfirmation_message").value,
+            "edit_after_submit": document.querySelector("#edit_after_submit")?.checked || false,
+            "limit_ip": document.querySelector("#limit_ip")?.checked || false,
+            "submit_limit": document.querySelector("#submit_limit")?.checked || false,
+            "allow_med_center_choice": document.querySelector("#allow_med_center_choice")?.checked || false
+        };
+        
+        // Add optional properties only if the elements exist
+        const is_single_form = document.querySelector("#is_single_form");
+        if (is_single_form) {
+            data["is_single_form"] = is_single_form.checked;
+        } else {
+            data["is_single_form"] = false;
+        }
+        
+        const is_active = document.querySelector("#is_active");
+        if (is_active) {
+            data["is_active"] = is_active.checked;
+        } else {
+            data["is_active"] = false;
+        }
+        
+        const allow_view_score = document.querySelector("#allow_view_score");
+        if (allow_view_score) {
+            data["allow_view_score"] = allow_view_score.checked;
+        } else {
+            data["allow_view_score"] = false;
+        }
+        
         fetch('edit_setting', {
             method: "POST",
             headers: {'X-CSRFToken': csrf},
-            body: JSON.stringify({
-                "collect_email": document.querySelector("#collect_email").checked,
-                "is_quiz": document.querySelector("#is_quiz").checked,
-                "authenticated_responder": document.querySelector("#authenticated_responder").checked,
-                "confirmation_message": document.querySelector("#comfirmation_message").value,
-                "edit_after_submit": document.querySelector("#edit_after_submit").checked,
-                "allow_view_score": document.querySelector("#allow_view_score").checked,
-                "limit_ip": document.querySelector("#limit_ip").checked,
-                "submit_limit": document.querySelector("#submit_limit").checked,
-                "is_single_form": document.querySelector("#is_single_form").checked,
-                "is_active": document.querySelector("#is_active").checked
-            })
+            body: JSON.stringify(data)
         })
         .then(response => {
             if (response.ok) {
-                window.location.href = '{% url 'edit_form' form.code %}';
+                window.location.href = '{% url "form_settings" form.code %}';
             }
         });
     });

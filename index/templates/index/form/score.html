@@ -150,10 +150,6 @@ $(document).ready(function() {
                         <label for="collect_email" class="setting-form-label">Сбор E-mail адресов.</label>
                     </div>
                     <div class="form-group">
-                        <input type="checkbox" id="is_quiz" {% if form.is_quiz %} checked {% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
-                        <label for="is_quiz" class="setting-form-label">Преобразовать в тест</label>
-                    </div>
-                    <div class="form-group">
                         <input type="checkbox" id="authenticated_responder" {% if form.authenticated_responder %} checked {% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
                         <label for="authenticated_responder" class="setting-form-label">Только авторизованные пользователи.</label>
                     </div>

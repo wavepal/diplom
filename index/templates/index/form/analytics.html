@@ -3,8 +3,9 @@
 {% load get_property %}
 {% load generate_color %}
 {% load count %}
-{% load calculate_score %}
 {% load calculate_penalty %}
+{% load get_response %}
+{% load to_int %}
 {% load divide %}
 {% load get_item %}
 {% block title %}{{form.title}} - Medical Forms{% endblock %}
@@ -15,12 +16,44 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize table zoom functionality
+    initializeTableZoom();
+    
+    // Initialize scroll indicators
+    initializeScrollIndicators();
+    
+    // Инициализация обработчиков прокрутки для таблиц
+    initializeTableScrollHandlers();
+    
+    // Добавляем обработчики для переключателей видимости столбцов и строк
+    document.querySelectorAll('.toggle-column').forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            const column = this.dataset.column;
+            const cells = document.querySelectorAll(`.column-${column}`);
+            cells.forEach(cell => {
+                cell.style.display = this.checked ? '' : 'none';
+            });
+        });
+    });
+
+    document.querySelectorAll('.toggle-med-center').forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            const medCenter = this.dataset.medCenter;
+            const rows = document.querySelectorAll(`.med-center-row[data-med-center="${medCenter}"]`);
+            rows.forEach(row => {
+                row.style.display = this.checked ? '' : 'none';
+            });
+        });
+    });
+
     // Функция для загрузки данных аналитики
     function loadAnalyticsData(dataType) {
         const loadingIndicator = document.getElementById(`loading-${dataType}`);
         if (loadingIndicator) loadingIndicator.style.display = 'block';
 
-        const url = new URL(`{% url 'load_analytics_data' code=form.code %}`);
+        // Get the base URL from Django template tag and construct full URL
+        const baseUrl = "{% url 'load_analytics_data' code=form.code %}";
+        const url = new URL(window.location.origin + baseUrl);
         url.searchParams.append('data_type', dataType);
         
         // Добавляем все параметры фильтрации
@@ -59,6 +92,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateMedStatsSection(data);
                 break;
             case 'range_slider':
+                // Placeholder function to prevent error
+                function updateRangeSliderSection(data) {
+                    console.log('Range slider data:', data);
+                    // Implement range slider update logic here
+                }
                 updateRangeSliderSection(data);
                 break;
             case 'final_scores':
@@ -92,23 +130,188 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Обработчик изменения фильтров
     document.getElementById('filter-form').addEventListener('submit', function(e) {
-        e.preventDefault();
+        e.preventDefault(); // Предотвращаем стандартную отправку формы
         
-        // Сбрасываем флаги загрузки данных
-        document.querySelectorAll('[data-analytics-type]').forEach(section => {
-            section.removeAttribute('data-loaded');
+        // Получаем данные формы
+        const formData = new FormData(this);
+        const searchParams = new URLSearchParams(formData);
+        
+        // Обновляем URL с параметрами фильтрации без перезагрузки страницы
+        const newUrl = window.location.pathname + '?' + searchParams.toString();
+        window.history.pushState({}, '', newUrl);
+        
+        // Очищаем таблицы
+        document.querySelector('#responsesTable tbody').innerHTML = '';
+        document.querySelector('#medCenterTable tbody').innerHTML = '';
+        document.querySelector('#totalScoresTable tbody').innerHTML = '';
+        
+        // Добавляем индикаторы загрузки
+        const tables = ['responsesTable', 'medCenterTable', 'totalScoresTable'];
+        tables.forEach(tableId => {
+            const tbody = document.querySelector(`#${tableId} tbody`);
+            const loadingRow = document.createElement('tr');
+            loadingRow.className = 'loading-indicator';
+            loadingRow.innerHTML = `<td colspan="${document.querySelectorAll(`#${tableId} th`).length}">Загрузка данных...</td>`;
+            tbody.appendChild(loadingRow);
         });
         
-        // Перезагружаем видимые секции
-        document.querySelectorAll('[data-analytics-type]').forEach(section => {
-            if (isElementInViewport(section)) {
-                const dataType = section.getAttribute('data-analytics-type');
-                loadAnalyticsData(dataType);
-                section.setAttribute('data-loaded', 'true');
+        // Сбрасываем страницы для всех таблиц
+        window.tablePages = {
+            responsesTable: 1,
+            medCenterTable: 1,
+            totalScoresTable: 1
+        };
+        
+        // Загружаем данные для каждой таблицы
+        loadTableData('responsesTable', 'responses/load_table');
+        loadTableData('medCenterTable', 'responses/load_med_centers');
+        loadTableData('totalScoresTable', 'responses/load_total_scores');
+    });
+
+    // Initialize table zoom functionality
+    initializeTableZoom();
+    
+    // Initialize scroll indicators
+    initializeScrollIndicators();
+    
+    // Инициализация обработчиков прокрутки для таблиц
+    initializeTableScrollHandlers();
+});
+
+// Функция для загрузки данных таблицы
+function loadTableData(tableId, endpoint, page = 1) {
+    const formCode = window.location.pathname.split('/')[2]; // Получаем код формы из URL
+    const formData = new FormData(document.getElementById('filter-form'));
+    const searchParams = new URLSearchParams(formData);
+    searchParams.append('page', page);
+    searchParams.append('per_page', 20);
+    
+    const url = `/form/${formCode}/${endpoint}?${searchParams.toString()}`;
+    
+    fetch(url, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        const tbody = document.querySelector(`#${tableId} tbody`);
+        
+        // Удаляем индикатор загрузки
+        const loadingIndicator = tbody.querySelector('.loading-indicator');
+        if (loadingIndicator) {
+            tbody.removeChild(loadingIndicator);
+        }
+        
+        // Добавляем новые строки
+        data.rows.forEach(row => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = row.html;
+            tbody.appendChild(tr);
+        });
+        
+        // Сохраняем информацию о наличии следующей страницы
+        window.tableHasMore = window.tableHasMore || {};
+        window.tableHasMore[tableId] = data.has_next;
+        
+        // Если есть еще страницы и таблица видима, добавляем индикатор загрузки
+        if (data.has_next) {
+            const tableContainer = document.querySelector(`#${tableId}-container`);
+            if (tableContainer && isElementInViewport(tableContainer)) {
+                window.tablePages = window.tablePages || {};
+                window.tablePages[tableId] = page + 1;
+                loadTableData(tableId, endpoint, page + 1);
+            } else {
+                // Добавляем индикатор загрузки, который будет виден при прокрутке
+                const loadingRow = document.createElement('tr');
+                loadingRow.className = 'loading-indicator';
+                loadingRow.innerHTML = `<td colspan="${document.querySelectorAll(`#${tableId} th`).length}">Прокрутите для загрузки дополнительных данных</td>`;
+                tbody.appendChild(loadingRow);
+            }
+        }
+        
+        // После загрузки данных, применяем форматирование для значений
+        applyValueFormatting(tableId);
+    })
+    .catch(error => {
+        console.error('Error loading table data:', error);
+        const tbody = document.querySelector(`#${tableId} tbody`);
+        const loadingIndicator = tbody.querySelector('.loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.innerHTML = `<td colspan="${document.querySelectorAll(`#${tableId} th`).length}">Ошибка загрузки данных: ${error.message}</td>`;
+        }
+    });
+}
+
+// Функция для применения форматирования значений в таблице
+function applyValueFormatting(tableId) {
+    if (tableId === 'medCenterTable') {
+        // Для average-slider-value
+        const averageSliderElements = document.querySelectorAll('.average-slider-value');
+        const averageSliderPercentageCheckbox = document.querySelector('.average-slider-percentage');
+        const isPercentage = averageSliderPercentageCheckbox ? averageSliderPercentageCheckbox.checked : false;
+        
+        averageSliderElements.forEach(function (element) {
+            const value = parseFloat(element.dataset.rawValue);
+            if (element.dataset.rawValue === 'N/A') {
+                element.textContent = 'N/A';
+                element.style.color = '';
+                return;
+            }
+            const maxRangeValue = element.closest('td').dataset.maxValue;
+            if (isPercentage) {
+                const percentage = (value / maxRangeValue) * 100;
+                element.textContent = percentage.toFixed(2) + '%';
+                element.style.color = getColorBasedOnPercentage(percentage);
+            } else {
+                element.textContent = value;
+                element.style.color = '';
             }
         });
-    });
-});
+    } else if (tableId === 'responsesTable') {
+        // Для range-slider-value
+        const rangeSliderElements = document.querySelectorAll('.range-slider-value');
+        const rangeSliderPercentageCheckbox = document.querySelector('.range-slider-percentage');
+        const isPercentage = rangeSliderPercentageCheckbox ? rangeSliderPercentageCheckbox.checked : false;
+        
+        rangeSliderElements.forEach(function (element) {
+            const value = parseFloat(element.dataset.rawValue);
+            const maxRangeValue = element.closest('td').dataset.maxValue;
+            element.dataset.rawValue = value;
+            if (!isNaN(value) && value !== null) {
+                if (isPercentage) {
+                    const percentage = (value / maxRangeValue) * 100;
+                    element.textContent = percentage.toFixed(2) + '%';
+                    element.style.color = getColorBasedOnPercentage(percentage);
+                } else {
+                    element.textContent = value;
+                    element.style.color = '';
+                }
+            } else {
+                element.textContent = 'N/A';
+                element.style.color = '';
+            }
+        });
+    }
+}
+
+// Функция для определения цвета на основе процента
+function getColorBasedOnPercentage(percentage) {
+    if (percentage >= 80) {
+        return '#00a000'; // Темно-зеленый
+    } else if (percentage >= 50) {
+        return '#ffd700'; // Золотисто-желтый
+    } else {
+        return '#ff4500'; // Красно-оранжевый
+    }
+}
 
 // Вспомогательная функция для проверки видимости элемента
 function isElementInViewport(el) {
@@ -119,6 +322,296 @@ function isElementInViewport(el) {
         rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
         rect.right <= (window.innerWidth || document.documentElement.clientWidth)
     );
+}
+
+// Функция для инициализации обработчиков прокрутки таблиц
+function initializeTableScrollHandlers() {
+    const tableContainers = [
+        document.getElementById('responsesTable-container'),
+        document.getElementById('medCenterTable-container'),
+        document.getElementById('totalScoresTable-container')
+    ];
+    
+    const endpoints = {
+        'responsesTable': 'responses/load_table',
+        'medCenterTable': 'responses/load_med_centers',
+        'totalScoresTable': 'responses/load_total_scores'
+    };
+    
+    tableContainers.forEach(container => {
+        if (!container) return;
+        
+        container.addEventListener('scroll', function() {
+            const tableId = this.id.replace('-container', '');
+            
+            // Проверяем, достигли ли мы конца таблицы
+            if (this.scrollHeight - this.scrollTop <= this.clientHeight + 100) {
+                // Проверяем, есть ли еще страницы для загрузки
+                if (window.tableHasMore && window.tableHasMore[tableId]) {
+                    // Проверяем, не загружаются ли уже данные
+                    const loadingIndicator = this.querySelector('.loading-indicator');
+                    if (!loadingIndicator || loadingIndicator.style.display === 'none') {
+                        // Загружаем следующую страницу
+                        window.tablePages = window.tablePages || {};
+                        window.tablePages[tableId] = window.tablePages[tableId] || 2;
+                        
+                        loadTableData(tableId, endpoints[tableId], window.tablePages[tableId]);
+                    }
+                }
+            }
+        });
+    });
+}
+
+// Функция для обновления всех таблиц
+function refreshAllTables() {
+    // Очищаем таблицы
+    document.querySelector('#responsesTable tbody').innerHTML = '';
+    document.querySelector('#medCenterTable tbody').innerHTML = '';
+    document.querySelector('#totalScoresTable tbody').innerHTML = '';
+    
+    // Добавляем индикаторы загрузки
+    const tables = ['responsesTable', 'medCenterTable', 'totalScoresTable'];
+    tables.forEach(tableId => {
+        const tbody = document.querySelector(`#${tableId} tbody`);
+        const loadingRow = document.createElement('tr');
+        loadingRow.className = 'loading-indicator';
+        loadingRow.innerHTML = `<td colspan="${document.querySelectorAll(`#${tableId} th`).length}">Загрузка данных...</td>`;
+        tbody.appendChild(loadingRow);
+    });
+    
+    // Сбрасываем страницы для всех таблиц
+    window.tablePages = {
+        responsesTable: 1,
+        medCenterTable: 1,
+        totalScoresTable: 1
+    };
+    
+    // Загружаем данные для каждой таблицы
+    loadTableData('responsesTable', 'responses/load_table');
+    loadTableData('medCenterTable', 'responses/load_med_centers');
+    loadTableData('totalScoresTable', 'responses/load_total_scores');
+}
+
+// Функция для инициализации табличного масштаба
+function initializeTableZoom() {
+    // Get all zoom buttons
+    const zoomInButtons = document.querySelectorAll('.zoom-in');
+    const zoomOutButtons = document.querySelectorAll('.zoom-out');
+    
+    // Set initial zoom levels
+    const zoomLevels = {
+        'responsesTable': 100,
+        'medCenterTable': 100,
+        'totalScoresTable': 100
+    };
+    
+    // Set initial zoom class
+    document.querySelectorAll('.responses-table').forEach(table => {
+        table.classList.add('zoom-100');
+    });
+    
+    // Add event listeners for zoom in buttons
+    zoomInButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const tableId = this.getAttribute('data-table');
+            const tableContainer = document.getElementById(tableId + '-container');
+            const zoomLevelDisplay = document.getElementById(tableId + '-zoom');
+            
+            // Increase zoom level (max 150%)
+            if (zoomLevels[tableId] < 150) {
+                // Remove current zoom class
+                tableContainer.classList.remove(`zoom-${zoomLevels[tableId]}`);
+                
+                // Increase zoom level
+                zoomLevels[tableId] += 15;
+                if (zoomLevels[tableId] > 150) zoomLevels[tableId] = 150;
+                
+                // Update zoom
+                updateTableZoom(tableContainer, zoomLevelDisplay, zoomLevels[tableId]);
+            }
+        });
+    });
+    
+    // Add event listeners for zoom out buttons
+    zoomOutButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const tableId = this.getAttribute('data-table');
+            const tableContainer = document.getElementById(tableId + '-container');
+            const zoomLevelDisplay = document.getElementById(tableId + '-zoom');
+            
+            // Decrease zoom level (min 70%)
+            if (zoomLevels[tableId] > 75) {
+                // Remove current zoom class
+                tableContainer.classList.remove(`zoom-${zoomLevels[tableId]}`);
+                
+                // Decrease zoom level
+                zoomLevels[tableId] -= 15;
+                if (zoomLevels[tableId] < 75) zoomLevels[tableId] = 75;
+                
+                // Update zoom
+                updateTableZoom(tableContainer, zoomLevelDisplay, zoomLevels[tableId]);
+            }
+        });
+    });
+}
+
+function updateTableZoom(tableContainer, zoomLevelDisplay, zoomLevel) {
+    // Update the zoom class
+    tableContainer.classList.add(`zoom-${zoomLevel}`);
+    
+    // Update the zoom level display
+    zoomLevelDisplay.textContent = zoomLevel + '%';
+}
+
+// Функция для инициализации прокрутки таблиц
+function initializeScrollIndicators() {
+    const tableContainers = document.querySelectorAll('.responses-table');
+    
+    tableContainers.forEach(container => {
+        const indicator = container.querySelector('.table-scroll-indicator');
+        
+        // Check if horizontal scrolling is needed
+        function checkScroll() {
+            if (container.scrollWidth > container.clientWidth) {
+                indicator.style.opacity = '1';
+                
+                // Hide indicator after 3 seconds
+                setTimeout(() => {
+                    indicator.style.opacity = '0';
+                }, 3000);
+            } else {
+                indicator.style.opacity = '0';
+            }
+        }
+        
+        // Check on load and resize
+        checkScroll();
+        window.addEventListener('resize', checkScroll);
+        
+        // Hide indicator when scrolling
+        container.addEventListener('scroll', () => {
+            indicator.style.opacity = '0';
+        });
+    });
+}
+
+// Функция для инициализации таблиц
+function initializeTables() {
+    // Очищаем таблицы
+    document.querySelector('#responsesTable tbody').innerHTML = '';
+    document.querySelector('#medCenterTable tbody').innerHTML = '';
+    document.querySelector('#totalScoresTable tbody').innerHTML = '';
+    
+    // Добавляем индикаторы загрузки
+    const tables = ['responsesTable', 'medCenterTable', 'totalScoresTable'];
+    tables.forEach(tableId => {
+        const tbody = document.querySelector(`#${tableId} tbody`);
+        const loadingRow = document.createElement('tr');
+        loadingRow.className = 'loading-indicator';
+        loadingRow.innerHTML = `<td colspan="${document.querySelectorAll(`#${tableId} th`).length}">Загрузка данных...</td>`;
+        tbody.appendChild(loadingRow);
+    });
+    
+    // Сбрасываем страницы для всех таблиц
+    window.tablePages = {
+        responsesTable: 1,
+        medCenterTable: 1,
+        totalScoresTable: 1
+    };
+    
+    // Загружаем данные для каждой таблицы
+    loadTableData('responsesTable', 'responses/load_table');
+    loadTableData('medCenterTable', 'responses/load_med_centers');
+    loadTableData('totalScoresTable', 'responses/load_total_scores');
+}
+
+function updateExportForm() {
+    // Получаем все данные формы фильтрации
+    const formData = new FormData(document.getElementById('filter-form'));
+    const formParams = new URLSearchParams(formData);
+    
+    // Получаем информацию о скрытых столбцах
+    let hidden_columns = [];
+    document.querySelectorAll('.toggle-column').forEach(checkbox => {
+        if (!checkbox.checked) {
+            hidden_columns.push(checkbox.dataset.column);
+        }
+    });
+
+    const rangeSliderPercentageCheckbox = document.querySelector('.range-slider-percentage');
+    const totalScorePercentageCheckbox = document.querySelector('.total-score-percentage');
+
+    const export_as_percentage = rangeSliderPercentageCheckbox ? rangeSliderPercentageCheckbox.checked : false;
+    const export_total_as_percentage = totalScorePercentageCheckbox ? totalScorePercentageCheckbox.checked : false;
+
+    // Добавляем параметры в URL
+    formParams.set('export_hidden_columns', hidden_columns.join(','));
+    formParams.set('export_as_percentage', export_as_percentage);
+    formParams.set('export_total_as_percentage', export_total_as_percentage);
+    
+    // Создаем URL для экспорта
+    const formCode = window.location.pathname.split('/')[2];
+    const exportUrl = `/form/${formCode}/responses/export_excel/?${formParams.toString()}`;
+    
+    // Перенаправляем на URL экспорта
+    window.location.href = exportUrl;
+}
+
+function updateExportCombinedForm() {
+    // Получаем все данные формы фильтрации
+    const formData = new FormData(document.getElementById('filter-form'));
+    const formParams = new URLSearchParams(formData);
+    
+    // Получаем информацию о видимых столбцах
+    const visibleColumns = [];
+    document.querySelectorAll('.toggle-column').forEach(checkbox => {
+        if (checkbox.checked) {
+            visibleColumns.push(checkbox.dataset.column);
+        }
+    });
+
+    // Получаем информацию о видимых медцентрах
+    const visibleMedCenters = [];
+    document.querySelectorAll('.toggle-med-center').forEach(checkbox => {
+        if (checkbox.checked) {
+            visibleMedCenters.push(checkbox.dataset.medCenter);
+        }
+    });
+
+    // Получаем информацию о процентах
+    const averageSliderPercentageCheckbox = document.querySelector('.average-slider-percentage');
+    const export_as_percentage = averageSliderPercentageCheckbox ? averageSliderPercentageCheckbox.checked : false;
+
+    // Получаем информацию о скрытии общего количества ответов
+    const hideTotalResponsesCheckbox = document.querySelector('.toggle-column[data-column="total-responses"]');
+    const hide_total_responses = hideTotalResponsesCheckbox ? !hideTotalResponsesCheckbox.checked : false;
+    
+    // Добавляем параметры в URL
+    formParams.set('visible_columns', visibleColumns.join(','));
+    formParams.set('visible_med_centers', visibleMedCenters.join(','));
+    formParams.set('export_as_percentage', export_as_percentage);
+    formParams.set('hide_total_responses', hide_total_responses);
+    
+    // Создаем URL для экспорта
+    const formCode = window.location.pathname.split('/')[2];
+    const exportUrl = `/form/${formCode}/responses/export_combined/?${formParams.toString()}`;
+    
+    // Перенаправляем на URL экспорта
+    window.location.href = exportUrl;
+}
+
+function exportFinalScores() {
+    // Получаем все данные формы фильтрации
+    const formData = new FormData(document.getElementById('filter-form'));
+    const formParams = new URLSearchParams(formData);
+    
+    // Создаем URL для экспорта
+    const formCode = window.location.pathname.split('/')[2];
+    const exportUrl = `/form/${formCode}/responses/export_final_scores/?${formParams.toString()}`;
+    
+    // Перенаправляем на URL экспорта
+    window.location.href = exportUrl;
 }
 </script>
 {% endblock %}
@@ -173,8 +666,8 @@ function isElementInViewport(el) {
                 
             <form id="filter-form" method="GET">
                     <div class="filter-content active" id="location-tab">
-                        <div class="filter-grid">
-                            <div class="filter-card">
+                        <div class="filter-grid compact-grid">
+                            <div class="filter-card compact-card">
                                 <div class="filter-card-header">
                                     <i class="fas fa-user-circle"></i>
                                     <h3>Регион пользователя</h3>
@@ -193,7 +686,7 @@ function isElementInViewport(el) {
                                 </div>
                             </div>
                             
-                            <div class="filter-card">
+                            <div class="filter-card compact-card">
                                 <div class="filter-card-header">
                                     <i class="fas fa-hospital"></i>
                                     <h3>Регион медцентра</h3>
@@ -212,7 +705,7 @@ function isElementInViewport(el) {
                                 </div>
                             </div>
                             
-                            <div class="filter-card">
+                            <div class="filter-card compact-card">
                                 <div class="filter-card-header">
                                     <i class="fas fa-layer-group"></i>
                                     <h3>Группа медцентров</h3>
@@ -231,7 +724,7 @@ function isElementInViewport(el) {
                                 </div>
                             </div>
                             
-                            <div class="filter-card">
+                            <div class="filter-card compact-card">
                                 <div class="filter-card-header">
                                     <i class="fas fa-clinic-medical"></i>
                                     <h3>Медцентр</h3>
@@ -253,8 +746,8 @@ function isElementInViewport(el) {
                     </div>
                     
                     <div class="filter-content" id="demographics-tab">
-                        <div class="filter-grid">
-                            <div class="filter-card">
+                        <div class="filter-grid compact-grid">
+                            <div class="filter-card compact-card">
                                 <div class="filter-card-header">
                                     <i class="fas fa-venus-mars"></i>
                                     <h3>Пол</h3>
@@ -287,7 +780,7 @@ function isElementInViewport(el) {
                                 </div>
                             </div>
                             
-                            <div class="filter-card">
+                            <div class="filter-card compact-card">
                                 <div class="filter-card-header">
                                     <i class="fas fa-birthday-cake"></i>
                                     <h3>Возраст</h3>
@@ -319,10 +812,10 @@ function isElementInViewport(el) {
                     </div>
                     
                     <div class="filter-content" id="answers-tab">
-                        <div class="filter-grid answers-grid">
+                        <div class="filter-grid compact-grid answers-grid">
                 {% for question in form.questions.all %}
                     {% if question.question_type == "multiple choice" or question.question_type == "checkbox" %}
-                                    <div class="filter-card">
+                                    <div class="filter-card compact-card">
                                         <div class="filter-card-header">
                                             <i class="fas fa-question-circle"></i>
                                             <h3>{{ question.question }}</h3>
@@ -349,8 +842,8 @@ function isElementInViewport(el) {
                     </div>
                     
                     <div class="filter-content" id="dates-tab">
-                        <div class="filter-grid">
-                            <div class="filter-card date-filter-card">
+                        <div class="filter-grid compact-grid">
+                            <div class="filter-card compact-card date-filter-card">
                                 <div class="filter-card-header">
                                     <i class="fas fa-calendar-day"></i>
                                     <h3>Период</h3>
@@ -360,7 +853,6 @@ function isElementInViewport(el) {
                                         <div class="date-field">
                                             <label for="date_from">Начало периода</label>
                                             <div class="date-input-wrapper">
-                                                <i class="fas fa-calendar-alt"></i>
                     <input type="date" id="date_from" name="date_from" 
                            value="{{ request.GET.date_from }}" 
                            class="filter-date">
@@ -369,7 +861,6 @@ function isElementInViewport(el) {
                                         <div class="date-field">
                                             <label for="date_to">Конец периода</label>
                                             <div class="date-input-wrapper">
-                                                <i class="fas fa-calendar-alt"></i>
                     <input type="date" id="date_to" name="date_to" 
                            value="{{ request.GET.date_to }}"
                            class="filter-date">
@@ -468,40 +959,45 @@ function isElementInViewport(el) {
                 }
                 
                 // Reset filters
-            document.getElementById('reset-filters').addEventListener('click', function() {
-                    // Reset all form fields
-                    document.getElementById('filter-form').reset();
-                    
-                    // Reset all select elements
-                    document.querySelectorAll('select').forEach(select => {
-                        select.value = '';
-                    });
+                document.getElementById('reset-filters').addEventListener('click', function() {
+                // Reset all form fields
+                document.getElementById('filter-form').reset();
+                
+                // Reset all select elements
+                document.querySelectorAll('select').forEach(select => {
+                    select.value = '';
+                });
                     
                     // Reset date fields
                 document.getElementById('date_from').value = '';
                 document.getElementById('date_to').value = '';
                 
-                    // Reset age fields
-                    document.getElementById('age_min').value = '';
-                    document.getElementById('age_max').value = '';
+                // Reset age fields
+                document.getElementById('age_min').value = '';
+                document.getElementById('age_max').value = '';
+                
+                // Remove active classes from presets
+                document.querySelectorAll('.age-preset, .date-preset').forEach(preset => {
+                    preset.classList.remove('active');
+                });
                     
-                    // Remove active classes from presets
-                    document.querySelectorAll('.age-preset, .date-preset').forEach(preset => {
-                        preset.classList.remove('active');
-                    });
-                    
-                    // Submit the form to update results
+                // Submit the form to update results
                 document.getElementById('filter-form').submit();
             });
 
-                // Date validation
+            // Date validation
             document.getElementById('date_to').addEventListener('change', function() {
                 const dateFrom = document.getElementById('date_from').value;
                 const dateTo = this.value;
                 
-                if (dateFrom && dateTo && dateFrom > dateTo) {
-                    alert('Дата окончания периода не может быть раньше даты начала');
-                    this.value = dateFrom;
+                if (dateFrom && dateTo) {
+                    const dateFromObj = new Date(dateFrom);
+                    const dateToObj = new Date(dateTo);
+                    
+                    if (dateFromObj > dateToObj) {
+                        alert('Дата окончания периода не может быть раньше даты начала');
+                        this.value = dateFrom;
+                    }
                 }
             });
 
@@ -509,11 +1005,16 @@ function isElementInViewport(el) {
                 const dateFrom = this.value;
                 const dateTo = document.getElementById('date_to').value;
                 
-                if (dateFrom && dateTo && dateFrom > dateTo) {
-                    alert('Дата начала периода не может быть позже даты окончания');
-                    this.value = dateTo;
+                if (dateFrom && dateTo) {
+                    const dateFromObj = new Date(dateFrom);
+                    const dateToObj = new Date(dateTo);
+                    
+                    if (dateFromObj > dateToObj) {
+                        alert('Дата начала периода не может быть позже даты окончания');
+                        this.value = dateTo;
+                    }
                 }
-                });
+            });
             });
         </script>
         <div class="margin-top-bottom box question-box">
@@ -543,17 +1044,9 @@ function isElementInViewport(el) {
                             {% for summary in responsesSummary %}
                                 {% if summary.question.question_type != "title" %}
                                     <th class="column-question-{{ summary.question.id }}">{{ summary.question.question }}
-                                        <a class="column-question-score">
-                                        {% if summary.question.score != 0 and form.is_quiz %}
-                                            - {{ summary.question.score }} баллов
-                                        {% endif %}
-                                        </a>
                                     </th>
                                 {% endif %}
                             {% endfor %}
-                            {% if form.is_quiz %}
-                                <th class="column-total-score">Набрано баллов</th>
-                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -574,17 +1067,6 @@ function isElementInViewport(el) {
                         <label><input type="checkbox" class="toggle-column" data-column="med" checked> Медцентр</label>
                     </div>
                 </fieldset>
-                {% if form.is_quiz %}
-                <fieldset class="table-field collapsed">
-                    <legend>Баллы</legend>
-                    <div class="field-content">
-                        <label><input type="checkbox" class="toggle-column" data-column="choice-score" checked> Баллы по вариантам</label>
-                        <label><input type="checkbox" class="toggle-column" data-column="question-score" checked> Баллы за правильный ответ</label>
-                        <label><input type="checkbox" class="toggle-column" data-column="total-score" checked> Итоговый балл</label>
-                        <label><input type="checkbox" class="total-score-percentage"> Процентное соотношение</label>
-                    </div>
-                </fieldset>
-                {% endif %}
                 <fieldset class="table-field collapsed">
                     <legend>Вопросы</legend>
                     <div class="field-content">
@@ -617,79 +1099,21 @@ function isElementInViewport(el) {
             </script>
             <script>
                 document.addEventListener('DOMContentLoaded', function () {
-                    const rangeSliderElements = document.querySelectorAll('.range-slider-value');
-
-                    rangeSliderElements.forEach(function (element) {
-                        const value = parseFloat(element.textContent.trim());
-                        const maxRangeValue = element.closest('td').dataset.maxValue; // Fetching max value from data attribute
-                        element.dataset.rawValue = value; // Storing the original value
-                        if (!isNaN(value) && value !== null) {
-                            const percentage = (value / maxRangeValue) * 100;
-                            element.textContent = percentage.toFixed(2) + '%';
-                            element.style.color = getColorBasedOnPercentage(percentage);
-                        } else {
-                            element.textContent = 'N/A';
-                            element.style.color = '';
-                        }
-                    });
-                });
-
-                document.querySelector('.range-slider-percentage').addEventListener('change', function () {
-                    const isPercentage = this.checked;
-                    const rangeSliderElements = document.querySelectorAll('.range-slider-value');
-
-                    rangeSliderElements.forEach(function (element) {
-                        let value = parseFloat(element.dataset.rawValue);
-                        const maxRangeValue = element.closest('td').dataset.maxValue; // Fetching max value from data attribute
-                        if (!isNaN(value) && value !== null) {
-                            if (isPercentage) {
-                                const percentage = (value / maxRangeValue) * 100;
-                                element.textContent = percentage.toFixed(2) + '%';
-                                element.style.color = getColorBasedOnPercentage(percentage);
-                            } else {
-                                element.textContent = value;
-                                element.style.color = '';
-                            }
-                        } else {
-                            element.textContent = 'N/A';
-                            element.style.color = '';
-                        }
-                    });
-                });
-            </script>
-            <script>
-                document.addEventListener('DOMContentLoaded', function () {
-                    const totalScoreElements = document.querySelectorAll('.column-total-score-percentage');
-                    // Store the Django template value in a JavaScript variable
-                    const maxScore = {% if form|calculate_total_score %}{{ form|calculate_total_score }}{% else %}100{% endif %};
-
-                    totalScoreElements.forEach(function (element) {
-                        const scoreText = element.textContent.split('/')[0].trim();
-                        const score = parseFloat(scoreText);
-                        element.dataset.rawScore = score; // Save initial value
-                        if (!isNaN(score) && score !== null) {
-                            const percentage = (score / maxScore) * 100;
-                            element.textContent = percentage.toFixed(2) + '%';
-                            element.style.color = getColorBasedOnPercentage(percentage);
-                        } else {
-                            element.textContent = 'N/A';
-                            element.style.color = '';
-                        }
-                    });
-
-                    const totalScorePercentageElement = document.querySelector('.total-score-percentage');
-                    if (totalScorePercentageElement) {
-                        totalScorePercentageElement.addEventListener('change', function () {
+                    // Обработчик изменения отображения процентов для range slider
+                    document.querySelector('.range-slider-percentage').addEventListener('change', function () {
                         const isPercentage = this.checked;
-                        totalScoreElements.forEach(function (element) {
-                            let score = parseFloat(element.dataset.rawScore);
-                            if (!isNaN(score) && score !== null) {
+                        const rangeSliderElements = document.querySelectorAll('.range-slider-value');
+
+                        rangeSliderElements.forEach(function (element) {
+                            let value = parseFloat(element.dataset.rawValue);
+                            const maxRangeValue = element.closest('td').dataset.maxValue; // Fetching max value from data attribute
+                            if (!isNaN(value) && value !== null) {
                                 if (isPercentage) {
-                                    const percentage = (score / maxScore) * 100;
+                                    const percentage = (value / maxRangeValue) * 100;
                                     element.textContent = percentage.toFixed(2) + '%';
                                     element.style.color = getColorBasedOnPercentage(percentage);
                                 } else {
-                                    element.textContent = score + ' / ' + maxScore;
+                                    element.textContent = value;
                                     element.style.color = '';
                                 }
                             } else {
@@ -698,29 +1122,62 @@ function isElementInViewport(el) {
                             }
                         });
                     });
-                    }
-                });
+                    
+                    // Обработчик изменения отображения процентов для average slider
+                    document.querySelector('.average-slider-percentage').addEventListener('change', function () {
+                        const isPercentage = this.checked;
+                        const averageSliderElements = document.querySelectorAll('.average-slider-value');
 
-                function getColorBasedOnPercentage(percentage) {
-                    if (isNaN(percentage)) {
-                        return '';
-                    } else if (percentage >= 80) {
-                        return '#00b300'; // Зеленый
-                    } else if (percentage >= 50) {
-                        return '#ffcc00'; // Желтый
-                    } else {
-                        return '#ff3300'; // Красный
-                    }
-                }
+                        averageSliderElements.forEach(function (element) {
+                            let value = parseFloat(element.dataset.rawValue);
+                            if (element.dataset.rawValue === 'N/A') {
+                                element.textContent = 'N/A';
+                                element.style.color = '';
+                                return;
+                            }
+                            const maxRangeValue = element.closest('td').dataset.maxValue; // Fetching max value from data attribute
+                            if (isPercentage) {
+                                const percentage = (value / maxRangeValue) * 100;
+                                element.textContent = percentage.toFixed(2) + '%';
+                                element.style.color = getColorBasedOnPercentage(percentage);
+                            } else {
+                                element.textContent = value;
+                                element.style.color = '';
+                            }
+                        });
+                    });
+                    
+                    // Обработчики для переключения видимости столбцов
+                    document.querySelectorAll('.toggle-column').forEach(function(checkbox) {
+                        checkbox.addEventListener('change', function() {
+                            const column = this.dataset.column;
+                            const cells = document.querySelectorAll(`.column-${column}`);
+                            cells.forEach(cell => {
+                                cell.style.display = this.checked ? '' : 'none';
+                            });
+                        });
+                    });
+
+                    // Обработчики для переключения видимости строк медцентров
+                    document.querySelectorAll('.toggle-med-center').forEach(function(checkbox) {
+                        checkbox.addEventListener('change', function() {
+                            const medCenter = this.dataset.medCenter;
+                            const rows = document.querySelectorAll(`.med-center-row[data-med-center="${medCenter}"]`);
+                            rows.forEach(row => {
+                                row.style.display = this.checked ? '' : 'none';
+                            });
+                        });
+                    });
+                });
             </script>
             <h1 class="response-title">Экспорт данных</h1>
             <script>
                 function updateExportForm() {
-                    const cities = document.getElementById('cities').value;
-                    const gender = document.getElementById('gender').value;
-                    const age_min = document.getElementById('age_min').value;
-                    const age_max = document.getElementById('age_max').value;
-            
+                    // Получаем все данные формы фильтрации
+                    const formData = new FormData(document.getElementById('filter-form'));
+                    const formParams = new URLSearchParams(formData);
+                    
+                    // Получаем информацию о скрытых столбцах
                     let hidden_columns = [];
                     document.querySelectorAll('.toggle-column').forEach(checkbox => {
                         if (!checkbox.checked) {
@@ -734,24 +1191,20 @@ function isElementInViewport(el) {
                     const export_as_percentage = rangeSliderPercentageCheckbox ? rangeSliderPercentageCheckbox.checked : false;
                     const export_total_as_percentage = totalScorePercentageCheckbox ? totalScorePercentageCheckbox.checked : false;
             
-                    document.getElementById('export-cities').value = cities;
-                    document.getElementById('export-gender').value = gender;
-                    document.getElementById('export-age-min').value = age_min;
-                    document.getElementById('export-age-max').value = age_max;
-                    document.getElementById('export-hidden-columns').value = hidden_columns.join(',');
-                    document.getElementById('export-as-percentage').value = export_as_percentage;
-                    document.getElementById('export-total-as-percentage').value = export_total_as_percentage;
-                    document.getElementById('export-form').submit();
+                    // Добавляем параметры в URL
+                    formParams.set('export_hidden_columns', hidden_columns.join(','));
+                    formParams.set('export_as_percentage', export_as_percentage);
+                    formParams.set('export_total_as_percentage', export_total_as_percentage);
+                    
+                    // Создаем URL для экспорта
+                    const formCode = window.location.pathname.split('/')[2];
+                    const exportUrl = `/form/${formCode}/responses/export_excel/?${formParams.toString()}`;
+                    
+                    // Перенаправляем на URL экспорта
+                    window.location.href = exportUrl;
                 }
             </script>          
-            <form id="export-form" action="{% url 'export_responses_to_excel' code=form.code %}" method="GET">
-                <input type="hidden" id="export-cities" name="cities">
-                <input type="hidden" id="export-gender" name="gender">
-                <input type="hidden" id="export-age-min" name="age_min">
-                <input type="hidden" id="export-age-max" name="age_max">
-                <input type="hidden" id="export-hidden-columns" name="hidden_columns">
-                <input type="hidden" id="export-as-percentage" name="export_as_percentage">
-                <input type="hidden" id="export-total-as-percentage" name="export_total_as_percentage">
+            <form id="export-form" action="javascript:void(0);" method="GET">
                 <button type="button" class="btn send-form-btn big-screen" onclick="updateExportForm()">Скачать Excel</button>
             </form>
         </div>
@@ -840,7 +1293,7 @@ function isElementInViewport(el) {
                 </fieldset>
             </form>
             <h2 class="response-title">Экспорт данных</h2>
-            <form id="export-combined-form" action="{% url 'export_combined_excel' code=form.code %}" method="GET">
+            <form id="export-combined-form" action="javascript:void(0);" method="GET">
                 <input type="hidden" name="visible_columns" id="combined_visible_columns">
                 <input type="hidden" name="visible_med_centers" id="combined_visible_med_centers">
                 <input type="hidden" name="export_as_percentage" id="export-combined-as-percentage">
@@ -889,89 +1342,47 @@ function isElementInViewport(el) {
                 });
 
                 function updateExportCombinedForm() {
+                    // Получаем все данные формы фильтрации
+                    const formData = new FormData(document.getElementById('filter-form'));
+                    const formParams = new URLSearchParams(formData);
+                    
+                    // Получаем информацию о видимых столбцах
                     const visibleColumns = [];
                     document.querySelectorAll('.toggle-column').forEach(checkbox => {
                         if (checkbox.checked) {
                             visibleColumns.push(checkbox.dataset.column);
                         }
                     });
-                    document.getElementById('combined_visible_columns').value = visibleColumns.join(',');
 
+                    // Получаем информацию о видимых медцентрах
                     const visibleMedCenters = [];
                     document.querySelectorAll('.toggle-med-center').forEach(checkbox => {
                         if (checkbox.checked) {
                             visibleMedCenters.push(checkbox.dataset.medCenter);
                         }
                     });
-                    document.getElementById('combined_visible_med_centers').value = visibleMedCenters.join(',');
 
+                    // Получаем информацию о процентах
                     const averageSliderPercentageCheckbox = document.querySelector('.average-slider-percentage');
                     const export_as_percentage = averageSliderPercentageCheckbox ? averageSliderPercentageCheckbox.checked : false;
-                    document.getElementById('export-combined-as-percentage').value = export_as_percentage;
 
+                    // Получаем информацию о скрытии общего количества ответов
                     const hideTotalResponsesCheckbox = document.querySelector('.toggle-column[data-column="total-responses"]');
                     const hide_total_responses = hideTotalResponsesCheckbox ? !hideTotalResponsesCheckbox.checked : false;
-                    document.getElementById('hide-total-responses').value = hide_total_responses;
+                    
+                    // Добавляем параметры в URL
+                    formParams.set('visible_columns', visibleColumns.join(','));
+                    formParams.set('visible_med_centers', visibleMedCenters.join(','));
+                    formParams.set('export_as_percentage', export_as_percentage);
+                    formParams.set('hide_total_responses', hide_total_responses);
+                    
+                    // Создаем URL для экспорта
+                    const formCode = window.location.pathname.split('/')[2];
+                    const exportUrl = `/form/${formCode}/responses/export_combined/?${formParams.toString()}`;
+                    
+                    // Перенаправляем на URL экспорта
+                    window.location.href = exportUrl;
                 }
-
-                document.querySelectorAll('.toggle-column, .toggle-med-center').forEach(checkbox => {
-                    checkbox.addEventListener('change', updateExportCombinedForm);
-                });
-
-                // Обновить форму экспорта при загрузке страницы
-                updateExportCombinedForm();
-            </script>
-            <script>
-                document.querySelector('.average-slider-percentage').addEventListener('change', function () {
-                    const isPercentage = this.checked;
-                    const averageSliderElements = document.querySelectorAll('.average-slider-value');
-
-                    averageSliderElements.forEach(function (element) {
-                        let value = parseFloat(element.dataset.rawValue);
-                        if (element.dataset.rawValue === 'N/A') {
-                            element.textContent = 'N/A';
-                            element.style.color = '';
-                            return;
-                        }
-                        const maxRangeValue = element.closest('td').dataset.maxValue; // Fetching max value from data attribute
-                        if (isPercentage) {
-                            const percentage = (value / maxRangeValue) * 100;
-                            element.textContent = percentage.toFixed(2) + '%';
-                            element.style.color = getColorBasedOnPercentage(percentage);
-                        } else {
-                            element.textContent = value;
-                            element.style.color = '';
-                        }
-                    });
-                });
-
-                function getColorBasedOnPercentage(percentage) {
-                    if (percentage >= 80) {
-                        return '#00a000'; // Темно-зеленый
-                    } else if (percentage >= 50) {
-                        return '#ffd700'; // Золотисто-желтый
-                    } else {
-                        return '#ff4500'; // Красно-оранжевый
-                    }
-                }
-
-                // Инициализация значений при загрузке страницы
-                document.addEventListener('DOMContentLoaded', function () {
-                    const averageSliderElements = document.querySelectorAll('.average-slider-value');
-                    averageSliderElements.forEach(function (element) {
-                        const value = parseFloat(element.textContent.trim());
-                        if (isNaN(value)) {
-                            element.textContent = 'N/A';
-                            element.style.color = '';
-                            return;
-                        }
-                        const maxRangeValue = element.closest('td').dataset.maxValue; // Fetching max value from data attribute
-                        element.dataset.rawValue = value; // Storing the original value
-                        const percentage = (value / maxRangeValue) * 100;
-                        element.textContent = percentage.toFixed(2) + '%';
-                        element.style.color = getColorBasedOnPercentage(percentage);
-                    });
-                });
             </script>
         </div>
         <div class="margin-top-bottom box question-box">
@@ -1007,525 +1418,340 @@ function isElementInViewport(el) {
                 </table>
             </div>
             <h2 class="response-title">Экспорт данных</h2>
-            <form action="{% url 'export_final_scores' form.code %}" method="GET">
-                <button type="submit" class="btn send-form-btn big-screen">Скачать Excel</button>
+            <form action="javascript:void(0);" method="GET">
+                <button type="submit" class="btn send-form-btn big-screen" onclick="exportFinalScores()">Скачать Excel</button>
             </form>
+            <script>
+                function exportFinalScores() {
+                    // Получаем все данные формы фильтрации
+                    const formData = new FormData(document.getElementById('filter-form'));
+                    const formParams = new URLSearchParams(formData);
+                    
+                    // Создаем URL для экспорта
+                    const formCode = window.location.pathname.split('/')[2];
+                    const exportUrl = `/form/${formCode}/responses/export_final_scores/?${formParams.toString()}`;
+                    
+                    // Перенаправляем на URL экспорта
+                    window.location.href = exportUrl;
+                }
+            </script>
         </div>
         <div class="margin-top-bottom box question-box">
             <h1 class="response-title">Графики данных</h1>
             {% for r in responsesSummary %}
-                {% if r.question.question_type == 'checkbox' or r.question.question_type == 'multiple choice' %}
-                    <div class="response-summary">
-                        <h3 class="response-summary-title">{{r.question.question}}</h3>
-                        <div class="choice">
-                            <input type="checkbox" id="{{choice.id}}" disabled>
-                            <label for="{{choice.id}}">
-                                <input type="text" data-id="{{choice.id}}" class="edit-choice" value="{{choice.choice}}" {% if not request.user.is_superuser %}disabled{% endif %}>
-                            </label>
-                            <span class="remove-option" title="Удалить" data-id="{{choice.id}}">&times;</span>
-                        </div>
-                        {% if r.answers|count > 0 or filteredResponsesSummary|get_property:r.question.question|count > 0 %}
-                        <select class="question-type-select input-question-type" data-id="{{r.question.id}}" data-origin_type="{{r.question.question_type}}">
-                            <option value="bar" {% if question.question_type == 'bar' %}selected{% endif %}>Столбцы</option>
-                            <option value="pie" {% if question.question_type == 'pie' %}selected{% endif %}>Пирог</option>
-                            <option value="doughnut" {% if question.question_type == 'doughnut' %}selected{% endif %}>Пончик</option>
-                            <option value="line" {% if question.question_type == 'line' %}selected{% endif %}>Линейная</option>
-                            <option value="polarArea" {% if question.question_type == 'polarArea' %}selected{% endif %}>Полярная</option>
-                        </select>
-                            
-                            <div class="chart-container" 
-                                 id="chartContainer{{r.question.id}}" 
-                                 data-chart-type="question"
-                                 data-chart-data='{
-                                     "labels": [{% for i in filteredResponsesSummary|get_property:r.question.id %}"{{i}}",{% endfor %}],
-                                     "datasets": [{
-                                         "label": "{{ r.question.question }}",
-                                         "data": [{% for i in filteredResponsesSummary|get_property:r.question.id %}{{filteredResponsesSummary|get_property:r.question.id|get_property:i}},{% endfor %}],
-                                         "backgroundColor": [{% for _ in filteredResponsesSummary|get_property:r.question.id %}"{{0|generate_color}}",{% endfor %}],
-                                         "borderWidth": 1
-                                     }]
-                                 }'>
-                                <div class="loading-indicator">Загрузка данных...</div>
-                                <div class="error-message" style="display: none; color: red; text-align: center; padding: 20px;"></div>
-                                <canvas id="myChart{{r.question.id}}" width="600" height="300"></canvas>
-                            </div>
-                        {% else %}
-                        <blockquote><i>Нет ответов</i></blockquote>
-                        {% endif %}
+            {% if r.question.question_type == 'checkbox' or r.question.question_type == 'multiple choice' %}
+            <div class="response-summary">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3 class="response-summary-title">{{r.question.question}}</h3>
+                    {% if r.answers|count > 0 %}
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button id="toggleChartBtn{{ r.question.id }}" class="toggle-chart-btn btn send-form-btn big-screen">Показать график</button>
                     </div>
-                    {% elif r.question.question_type == 'range slider' %}
-                    <div class="response-summary">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3 class="response-summary-title">{{ r.question.question }}</h3>
-                            {% with data=range_slider_data|get_item:r.question.id %}
-                            {% if r.answers|count > 0 or filteredResponsesSummary|get_property:r.question.question|count > 0 %}
-                                <button id="toggleChartBtn{{ r.question.id }}" class="toggle-chart-btn btn send-form-btn big-screen">Показать график</button>
-                            {% endif %}
-                            {% endwith %}
-                        </div>
-                        <div class="answers" data-id="{{ question.id }}">
-                            <input type="range" min="0" max="100" value="50" class="slider" disabled>
-                            <label for="input-max-value">
-                                <input type="number" id="input-max-value" value="{{ question.max_value }}" class="edit-choice" data-id="{{ question.id }}" placeholder="Макс. число" {% if not request.user.is_superuser %}disabled{% endif %}>
-                            </label>
-                        </div>
-                        {% with data=range_slider_data|get_item:r.question.id %}
-                        {% if r.answers|count > 0 or filteredResponsesSummary|get_property:r.question.question|count > 0 %}
-                            <div class="chart-container" 
-                                 id="chartContainer{{ r.question.id }}" 
-                                 data-chart-type="range-slider"
-                                 data-analytics-type="range_slider"
-                                 style="display: none;"
-                                 data-url="{% url 'load_analytics_data' code=form.code %}?data_type=range_slider">
-                                <div class="loading-indicator">Загрузка данных...</div>
-                                <div class="error-message" style="display: none; color: red; text-align: center; padding: 20px;"></div>
-                                <select class="input-question-type chart-filter-select" id="chartTypeSelect{{ r.question.id }}">
-                                    <option value="line">Линейный</option>
-                                    <option value="bar">Столбцы</option>
-                                </select>
-                                
-                                <select class="time-period-select input-time-period chart-filter-select" id="timePeriodSelect{{ r.question.id }}">
-                                    <option value="12">12 месяцев</option>
-                                    <option value="6" selected>6 месяцев</option>
-                                    <option value="3">3 месяца</option>
-                                    <option value="2">2 месяца</option>
-                                    <option value="1">1 месяц</option>
-                                </select>
+                    {% endif %}
+                </div>
+                {% for choice in r.question.choices.all %}
+                    <div class="choice">
+                        <input type="radio" id="{{choice.id}}" disabled>
+                        <label for="{{choice.id}}">
+                            <input type="text" value="{{choice.choice}}" class="edit-choice" data-id="{{choice.id}}" disabled>
+                        </label>
+                    </div>
+                {% endfor %}
                     
-                                <canvas id="combinedChart{{ r.question.id }}" width="600" height="400"></canvas>
-                            </div>
-                        {% else %}
-                            <blockquote><i>Нет ответов</i></blockquote>
-                        {% endif %}
-                        {% endwith %}
-                    </div>
-                {% endif %}
-            {% endfor %}
-        </div>
-        <div class="margin-top-bottom box question-box">
-            <h2 class="response-title">Графики итоговых оценок медцентров</h2>
-            <div class="chart-container" id="finalScoresChartContainer" data-chart-type="final-scores" data-url="{% url 'load_final_scores_chart' code=form.code %}">
-                <div class="loading-indicator">Загрузка данных...</div>
-                <div class="error-message" style="display: none; color: red; text-align: center; padding: 20px;"></div>
-                <div class="chart-content" style="display: none;">
-                    <select class="question-type-select input-question-type" id="finalScoresChartType">
-                        <option value="bar">Столбцы</option>
-                        <option value="line">Линейный</option>
-                        <option value="radar">Радар</option>
-                        <option value="polarArea">Полярная область</option>
+                {% if r.answers|count > 0 %}
+                <!-- Store chart data in data attributes -->
+                <div class="chart-container" id="chartContainer{{ r.question.id }}" style="display: none;">
+                    <div class="loading-indicator">Загрузка данных...</div>
+                    <div class="error-message" style="display: none; color: red; text-align: center; padding: 20px;"></div>
+                    <select id="chartTypeSelect{{ r.question.id }}" class="chart-filter-select" data-id="{{r.question.id}}" data-origin_type="{{r.question.question_type}}">
+                        <option value="bar" {% if question.question_type == 'bar' %}selected{% endif %}>Столбцы</option>
+                        <option value="pie" {% if question.question_type == 'pie' %}selected{% endif %}>Круговая</option>
+                        <!-- <option value="doughnut" {% if question.question_type == 'doughnut' %}selected{% endif %}>Кольцевая</option> -->
+                        <option value="line" {% if question.question_type == 'line' %}selected{% endif %}>Линейная</option>
+                        <option value="polarArea" {% if question.question_type == 'polarArea' %}selected{% endif %}>Полярная</option>
                     </select>
-                    <canvas id="finalScoresChart" width="600" height="400"></canvas>
+                    <canvas id="myChart{{r.question.id}}" class="chart"
+                        data-chart-data='{
+                            "labels": [{% for choice, count in filteredResponsesSummary|get_dict_items:r.question.id %}"{{choice}}"{% if not forloop.last %},{% endif %}{% endfor %}],
+                            "datasets": [{
+                                "label": "{{r.question.question}}",
+                                "data": [{% for choice, count in filteredResponsesSummary|get_dict_items:r.question.id %}{{count}}{% if not forloop.last %},{% endif %}{% endfor %}],
+                                "backgroundColor": [{% for choice, count in filteredResponsesSummary|get_dict_items:r.question.id %}"{{0|generate_color}}"{% if not forloop.last %},{% endif %}{% endfor %}],
+                                "borderWidth": 1
+                            }]
+                        }'
+                    ></canvas>
                 </div>
+                {% else %}
+                <blockquote><i>Нет ответов</i></blockquote>
+                {% endif %}
             </div>
-            
-            <h2 class="response-title mt-4">График влияния жалоб на итоговую оценку</h2>
-            <div class="chart-container" id="negativeImpactChartContainer" data-chart-type="negative-impact" data-url="{% url 'load_negative_impact_chart' code=form.code %}">
-                <div class="loading-indicator">Загрузка данных...</div>
-                <div class="error-message" style="display: none; color: red; text-align: center; padding: 20px;"></div>
-                <div class="chart-content" style="display: none;">
-                    <canvas id="negativeImpactChart" width="600" height="400"></canvas>
+            {% elif r.question.question_type == 'range slider' %}
+            <div class="response-summary">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3 class="response-summary-title">{{ r.question.question }}</h3>
+                    {% with data=range_slider_data|get_item:r.question.id %}
+                    {% if r.answers|count > 0 %}
+                        <button id="toggleChartBtn{{ r.question.id }}" class="toggle-chart-btn btn send-form-btn big-screen">Показать график</button>
+                    {% endif %}
+                    {% endwith %}
                 </div>
-            </div>
+                <div class="answers" data-id="{{ question.id }}">
+                    <input type="range" min="0" max="100" value="50" class="slider" disabled>
+                    <label for="input-max-value">
+                        <input type="number" id="input-max-value" value="{{ r.question.max_value }}" class="edit-choice" data-id="{{ r.question.id }}" placeholder="{{ r.question.max_value }}" {% if not request.user.is_superuser %}disabled{% endif %}>
+                    </label>
+                </div>
+                {% with data=range_slider_data|get_item:r.question.id %}
+                {% if r.answers|count > 0 %}
+                    <div class="chart-container" 
+                         id="chartContainer{{ r.question.id }}" 
+                         data-chart-type="range-slider"
+                         data-analytics-type="range_slider"
+                         style="display: none;"
+                         data-url="{% url 'load_analytics_data' code=form.code %}?data_type=range_slider">
+                        <div class="loading-indicator">Загрузка данных...</div>
+                        <div class="error-message" style="display: none; color: red; text-align: center; padding: 20px;"></div>
+                        <select class="input-question-type chart-filter-select" id="chartTypeSelect{{ r.question.id }}">
+                            <option value="line">Линейный</option>
+                            <option value="bar">Столбцы</option>
+                        </select>
+                        
+                        <select class="time-period-select input-time-period chart-filter-select" id="timePeriodSelect{{ r.question.id }}">
+                            <option value="12">12 месяцев</option>
+                            <option value="6" selected>6 месяцев</option>
+                            <option value="3">3 месяца</option>
+                            <option value="2">2 месяца</option>
+                            <option value="1">1 месяц</option>
+                        </select>
             
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    const observerOptions = {
-                        root: null,
-                        rootMargin: '50px',
-                        threshold: 0.1
-                    };
+                        <canvas id="combinedChart{{ r.question.id }}" width="600" height="400"></canvas>
+                    </div>
+                {% else %}
+                    <blockquote><i>Нет ответов</i></blockquote>
+                {% endif %}
+                {% endwith %}
+            </div>
+        {% endif %}
+    {% endfor %}
+</div>
+<div class="margin-top-bottom box question-box">
+    <h2 class="response-title">Графики итоговых оценок медцентров</h2>
+    <div class="chart-container" id="finalScoresChartContainer" data-chart-type="final-scores" data-url="{% url 'load_final_scores_chart' code=form.code %}">
+        <div class="loading-indicator">Загрузка данных...</div>
+        <div class="error-message" style="display: none; color: red; text-align: center; padding: 20px;"></div>
+        <div class="chart-content" style="display: none;">
+            <select class="question-type-select input-question-type" id="finalScoresChartType">
+                <option value="bar">Столбцы</option>
+                <option value="line">Линейный</option>
+                <option value="radar">Радар</option>
+                <option value="polarArea">Полярная область</option>
+            </select>
+            <canvas id="finalScoresChart" width="600" height="400"></canvas>
+        </div>
+    </div>
+    
+    <h2 class="response-title mt-4">График влияния жалоб на итоговую оценку</h2>
+    <div class="chart-container" id="negativeImpactChartContainer" data-chart-type="negative-impact" data-url="{% url 'load_negative_impact_chart' code=form.code %}">
+        <div class="loading-indicator">Загрузка данных...</div>
+        <div class="error-message" style="display: none; color: red; text-align: center; padding: 20px;"></div>
+        <div class="chart-content" style="display: none;">
+            <canvas id="negativeImpactChart" width="600" height="400"></canvas>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const observerOptions = {
+                root: null,
+                rootMargin: '50px',
+                threshold: 0.1
+            };
 
-                    const chartInstances = new Map();
+            const chartInstances = new Map();
 
-                    const chartObserver = new IntersectionObserver((entries) => {
-                        entries.forEach(entry => {
-                            if (entry.isIntersecting) {
-                                const chartContainer = entry.target;
-                                const chartId = chartContainer.getAttribute('id');
-                                
-                                if (!chartInstances.has(chartId)) {
-                                    loadChartData(chartContainer);
-                                }
-                                
-                                chartObserver.unobserve(chartContainer);
-                            }
-                        });
-                    }, observerOptions);
-
-                    async function loadChartData(container) {
-                        const url = container.getAttribute('data-url');
-                        const loadingIndicator = container.querySelector('.loading-indicator');
-                        const errorMessage = container.querySelector('.error-message');
-                        const chartContent = container.querySelector('.chart-content');
-
-                        try {
-                            loadingIndicator.style.display = 'block';
-                            errorMessage.style.display = 'none';
-                            chartContent.style.display = 'none';
-
-                            const response = await fetch(url);
-                            if (!response.ok) {
-                                throw new Error(response.statusText || 'Ошибка загрузки данных');
-                            }
-                            const data = await response.json();
-                            
-                            if (data.error) {
-                                throw new Error(data.error);
-                            }
-
-                            loadingIndicator.style.display = 'none';
-                            chartContent.style.display = 'block';
-                            initializeChart(container, data);
-                        } catch (error) {
-                            console.error('Error loading chart data:', error);
-                            loadingIndicator.style.display = 'none';
-                            errorMessage.style.display = 'block';
-                            errorMessage.textContent = error.message || 'Произошла ошибка при загрузке данных';
+            const chartObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const chartContainer = entry.target;
+                        const chartId = chartContainer.getAttribute('id');
+                        
+                        if (!chartInstances.has(chartId)) {
+                            loadChartData(chartContainer);
                         }
+                        
+                        chartObserver.unobserve(chartContainer);
+                    }
+                });
+            }, observerOptions);
+
+            async function loadChartData(container) {
+                const url = container.getAttribute('data-url');
+                const loadingIndicator = container.querySelector('.loading-indicator');
+                const errorMessage = container.querySelector('.error-message');
+                const chartContent = container.querySelector('.chart-content');
+
+                try {
+                    loadingIndicator.style.display = 'block';
+                    errorMessage.style.display = 'none';
+                    chartContent.style.display = 'none';
+
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(response.statusText || 'Ошибка загрузки данных');
+                    }
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        throw new Error(data.error);
                     }
 
-                    function initializeFinalScoresChart(container, data) {
-                    const chartTypeSelect = document.getElementById('finalScoresChartType');
-                    const ctx = document.getElementById('finalScoresChart');
-    
-                        if (!ctx || !chartTypeSelect) return;
-    
-                    let finalScoresChart;
-    
-                    const createChart = (type) => {
-                        if (finalScoresChart) {
-                            finalScoresChart.destroy();
-                        }
-    
-                            finalScoresChart = new Chart(ctx, {
-                            type: type,
-                                data: data,
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                scales: {
-                                    yAxes: [{
-                                        ticks: {
-                                            beginAtZero: true,
-                                            max: 100,
-                                            callback: function(value) {
-                                                return value + '%';
-                                            }
-                                        }
-                                    }]
-                                },
-                                tooltips: {
-                                    callbacks: {
-                                        label: function(tooltipItem, data) {
-                                            return data.datasets[tooltipItem.datasetIndex].label + ': ' + tooltipItem.value + '%';
-                                        }
-                                    }
-                                }
-                            }
-                        });
-                    };
-    
-                    createChart('bar');
-    
-                    chartTypeSelect.addEventListener('change', function() {
-                        createChart(this.value);
-                    });
+                    loadingIndicator.style.display = 'none';
+                    chartContent.style.display = 'block';
+                    initializeChart(container, data);
+                } catch (error) {
+                    console.error('Error loading chart data:', error);
+                    loadingIndicator.style.display = 'none';
+                    errorMessage.style.display = 'block';
+                    errorMessage.textContent = error.message || 'Произошла ошибка при загрузке данных';
+                }
+            }
 
-                        return finalScoresChart;
+            function initializeFinalScoresChart(container, data) {
+                const chartTypeSelect = document.getElementById('finalScoresChartType');
+                const ctx = document.getElementById('finalScoresChart');
+    
+                if (!ctx || !chartTypeSelect) return;
+    
+                let finalScoresChart;
+    
+                const createChart = (type) => {
+                    if (finalScoresChart) {
+                        finalScoresChart.destroy();
                     }
-
-                    function initializeNegativeImpactChart(container, data) {
-                        const ctx = document.getElementById('negativeImpactChart');
-                        if (!ctx) return;
-
-                        const chart = new Chart(ctx, {
-                        type: 'bar',
+    
+                    finalScoresChart = new Chart(ctx, {
+                        type: type,
                         data: data,
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
                             scales: {
-                                yAxes: [
-                                    {
-                                        id: 'y-axis-1',
-                                        type: 'linear',
-                                        position: 'left',
-                                        ticks: {
-                                            beginAtZero: true,
-                                            max: 100,
-                                            callback: function(value) {
-                                                return value + '%';
-                                            }
-                                        },
-                                        scaleLabel: {
-                                            display: true,
-                                            labelString: 'Итоговая оценка'
-                                        }
-                                    },
-                                    {
-                                        id: 'y-axis-2',
-                                        type: 'linear',
-                                        position: 'right',
-                                        ticks: {
-                                            beginAtZero: true,
-                                            stepSize: 1
-                                        },
-                                        scaleLabel: {
-                                            display: true,
-                                            labelString: 'Количество жалоб'
+                                yAxes: [{
+                                    ticks: {
+                                        beginAtZero: true,
+                                        max: 100,
+                                        callback: function(value) {
+                                            return value + '%';
                                         }
                                     }
-                                ]
+                                }]
                             },
                             tooltips: {
                                 callbacks: {
                                     label: function(tooltipItem, data) {
-                                        const dataset = data.datasets[tooltipItem.datasetIndex];
-                                        const value = dataset.data[tooltipItem.index];
-                                        if (dataset.label === 'Итоговая оценка') {
-                                            return dataset.label + ': ' + value + '%';
-                                        }
-                                        return dataset.label + ': ' + value;
+                                        return data.datasets[tooltipItem.datasetIndex].label + ': ' + tooltipItem.value + '%';
                                     }
                                 }
                             }
                         }
-                        });
-
-                        return chart;
-                    }
-
-                    function initializeChart(container, data) {
-                        const chartType = container.getAttribute('data-chart-type');
-                        let chart;
-
-                        switch (chartType) {
-                            case 'final-scores':
-                                chart = initializeFinalScoresChart(container, data);
-                                break;
-                            case 'negative-impact':
-                                chart = initializeNegativeImpactChart(container, data);
-                                break;
-                        }
-
-                        if (chart) {
-                            chartInstances.set(container.id, chart);
-                        }
-                    }
-
-                    document.querySelectorAll('#finalScoresChartContainer, #negativeImpactChartContainer').forEach(container => {
-                        chartObserver.observe(container);
                     });
+                };
+    
+                createChart('bar');
+    
+                chartTypeSelect.addEventListener('change', function() {
+                    createChart(this.value);
                 });
-            </script>
-        </div>
-    </div>
-    <div class="modal" id="customize-theme">
-        <div class="modal-content">
-            <span class="modal-close-btn" id="close-customize-theme">&times;</span>
-            <h1 class="modal-title">Настройки цвета</h1>
-            <h3 class="modal-subtitle">Цвет фона:  <input type="color"  value = "{{form.background_color}}" list="bgColors" class="form-control-color" id="input-bg-color" /></h3>
-            <datalist id="bgColors">
-                <option value="#aed581"></option>
-                <option value="#80deea"></option>
-                <option value="#b2ebf2"></option>
-                <option value="#e1bee7"></option>
-                <option value="#d1c4e9"></option>
-                <option value="#f0f4c3"></option>
-                <option value="#f5f5f5"></option>
-                <option value="#cfd8dc"></option>
-                <option value="#e6ee9c"></option>
-                <option value="#202124"></option>
-            </datalist>
-            <h3 class="modal-subtitle">Цвет текста:  <input type="color"  value = {{form.text_color}} list="textColors" class="form-control-color" id="input-text-color" /></h3>
-            <datalist id="textColors">
-                <option value="#880000"></option>
-                <option value="#512da8"></option>
-                <option value="#1a237e"></option>
-                <option value="#005cbf"></option>
-                <option value="#0288d1"></option>
-                <option value="#00695c"></option>
-                <option value="#424242"></option>
-                <option value="#321932"></option>
-                <option value="#121212"></option>
-            </datalist>
-        </div>
-    </div>
-    <div class="modal" id="setting">
-        <div class="modal-content txt-clr">
-            <form id="setting-form">
-                <span class="modal-close-btn" id="close-setting">&times;</span>
-                <h1 class = "modal-title">Настройки</h1>
-                <h4 class="setting-preview-form small-screen"><a href="{% url 'view_form' form.code %}">Превью формы</a></h4>
-                <div class="modal-division">
-                    <div class="form-group">
-                        <h3 class="modal-subtitle">Общее</h3>
-                        <input type="checkbox" id="collect_email"{% if form.collect_email %} checked {% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
-                        <label for="collect_email" class="setting-form-label">Сбор E-mail адресов.</label>
-                    </div>
-                    <div class="form-group">
-                        <input type="checkbox" id="is_quiz" {% if form.is_quiz %} checked {% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
-                        <label for="is_quiz" class="setting-form-label">Преобразовать в тест</label>
-                    </div>
-                    <div class="form-group">
-                        <input type="checkbox" id="authenticated_responder" {% if form.authenticated_responder %} checked {% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
-                        <label for="authenticated_responder" class="setting-form-label">Только авторизованные пользователи.</label>
-                    </div>
-                    <div class="form-group">
-                        <input type="checkbox" id="limit_ip" {% if form.limit_ip %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
-                        <label for="limit_ip" class="setting-form-label">Возможность ответить только один раз анонимным пользователям.</label>
-                    </div>
-                    <div class="form-group">
-                        <input type="checkbox" id="submit_limit" {% if form.submit_limit %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
-                        <label for="submit_limit" class="setting-form-label">Возможность ответить только один раз авторизованным пользователям.</label>
-                    </div>
-                    <div class="form-group">
-                        <input type="checkbox" id="is_single_form" {% if form.is_single_form %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
-                        <label for="is_single_form" class="setting-form-label">Доступ в телеграм-боте</label>
-                    </div>
-                    <div class="form-group">
-                        <input type="checkbox" id="is_active" {% if form.is_active %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
-                        <label for="is_active" class="setting-form-label">Учитывать в общей оценке</label>
-                    </div>
-                    <script>
-                        document.getElementById('limit_ip').addEventListener('change', function() {
-                            const limitIpValue = this.checked;
-                        
-                            fetch("{% url 'edit_setting' form.code %}", {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRFToken': '{{ csrf_token }}',
-                                },
-                                body: JSON.stringify({ limit_ip: limitIpValue })
-                            })
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.message === "Success") {
-                                    console.log("Setting updated successfully");
-                                } else {
-                                    console.log("Failed to update setting");
-                                }
-                            })
-                            .catch((error) => {
-                                console.error('Error:', error);
-                            });
-                        });
-                    </script>
-                    <script>
-                        document.getElementById('submit_limit').addEventListener('change', function() {
-                            const submitLimitValue = this.checked;
-                        
-                            fetch("{% url 'edit_setting' form.code %}", {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRFToken': '{{ csrf_token }}',
-                                },
-                                body: JSON.stringify({ submit_limit: submitLimitValue })
-                            })
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.message === "Success") {
-                                    console.log("Setting updated successfully");
-                                } else {
-                                    console.log("Failed to update setting");
-                                }
-                            })
-                            .catch((error) => {
-                                console.error('Error:', error);
-                            });
-                        });
-                    </script>
-                    <script>
-                        document.getElementById('is_single_form').addEventListener('change', function() {
-                            const isSingleFormValue = this.checked;
-                        
-                            fetch("{% url 'edit_setting' form.code %}", {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRFToken': '{{ csrf_token }}',
-                                },
-                                body: JSON.stringify({ is_single_form: isSingleFormValue })
-                            })
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.message === "Success") {
-                                    console.log("Setting updated successfully");
-                                } else {
-                                    console.log("Failed to update setting");
-                                }
-                            })
-                            .catch((error) => {
-                                console.error('Error:', error);
-                            });
-                        });
-                    </script>
-                </div>
-                <div class="modal-division">
-                    <div class="form-group">
-                        <h3 class="modal-subtitle">Опрошенные могут:</h3>
-                        <input type="checkbox" id="edit_after_submit" {% if form.edit_after_submit %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
-                        <label for="edit_after_submit" class="setting-form-label">Вносить изменения после отправки</label>
-                    </div>
-                    <div class="form-group">
-                        <input type="checkbox" id="allow_view_score" {% if form.allow_view_score %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
-                        <label for="allow_view_score" class="setting-form-label">Просмотреть свои оценки</label>
-                    </div>
-                </div>
-                <div class="modal-division">
-                    <div class="form-group">
-                        <h3 class="modal-subtitle">Сообщение после отправки:</h3>
-                        <textarea rows="1" class="confirmation-msg-input edit-on-click textarea-adjust" spellcheck="false"
-                         id="comfirmation_message" {% if not request.user.is_superuser %}disabled{% endif %}>{{form.confirmation_message}}</textarea>
-                    </div>
-                </div>
-                <div class="form-group">
-                  <input type="submit" value="Сохранить" class="form-control btn btn-save-setting">
-                </div>
-            </form>
-            <form id="delete-form" class="modal-division">
-                    <input type="submit" value="Удалить" class="form-control btn delete-form-btn">
-            </form>
-        </div>
-    </div>
-    <div class="modal" id="send-form">
-        <div class="modal-content">
-            <span class="modal-close-btn" id="close-send-form">&times;</span>
-            <h1 class="modal-title">Поделиться формой</h1>
-            <div class="modal-division">
-                <h4 class="modal-subtitle">Ссылка:</h4>
-                <input type="url" class="form-control" id="copy-url" value="http://{{request.get_host}}/form/{{form.code}}/viewform">
-            </div>
-            <button class="btn btn-submit" copy-btn>Копировать</button>
-            <div class="modal-division">
-                <h4 class="modal-subtitle">Код:</h4>
-                <input type="text" class="form-control" id="copy-code-url" value="{{form.code}}">
-            </div>
-            <button class="btn btn-submit" copy-code-btn>Копировать</button>
-        </div>
-    </div>
-</div>
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-        const searchInput = document.getElementById('response-search');
-        const responseList = document.querySelector('.modal-content');
 
-        searchInput.addEventListener('input', function() {
-            const searchTerm = searchInput.value.toLowerCase();
+                return finalScoresChart;
+            }
 
-            Array.from(responseList.children).forEach(function(responseItem) {
-                const responseText = responseItem.textContent.toLowerCase();
-                if (responseText.includes(searchTerm)) {
-                    responseItem.style.display = 'block';
-                } else {
-                    responseItem.style.display = 'none';
+            function initializeNegativeImpactChart(container, data) {
+                const ctx = document.getElementById('negativeImpactChart');
+                if (!ctx) return;
+
+                const chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: data,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            yAxes: [
+                                {
+                                    id: 'y-axis-1',
+                                    type: 'linear',
+                                    position: 'left',
+                                    ticks: {
+                                        beginAtZero: true,
+                                        max: 100,
+                                        callback: function(value) {
+                                            return value + '%';
+                                        }
+                                    },
+                                    scaleLabel: {
+                                        display: true,
+                                        labelString: 'Итоговая оценка'
+                                    }
+                                },
+                                {
+                                    id: 'y-axis-2',
+                                    type: 'linear',
+                                    position: 'right',
+                                    ticks: {
+                                        beginAtZero: true,
+                                        stepSize: 1
+                                    },
+                                    scaleLabel: {
+                                        display: true,
+                                        labelString: 'Количество жалоб'
+                                    }
+                                }
+                            ]
+                        },
+                        tooltips: {
+                            callbacks: {
+                                label: function(tooltipItem, data) {
+                                    const dataset = data.datasets[tooltipItem.datasetIndex];
+                                    const value = dataset.data[tooltipItem.index];
+                                    if (dataset.label === 'Итоговая оценка') {
+                                        return dataset.label + ': ' + value + '%';
+                                    }
+                                    return dataset.label + ': ' + value;
+                                }
+                            }
+                        }
+                    }
+                });
+
+                return chart;
+            }
+
+            function initializeChart(container, data) {
+                const chartType = container.getAttribute('data-chart-type');
+                let chart;
+
+                switch (chartType) {
+                    case 'final-scores':
+                        chart = initializeFinalScoresChart(container, data);
+                        break;
+                    case 'negative-impact':
+                        chart = initializeNegativeImpactChart(container, data);
+                        break;
                 }
+
+                if (chart) {
+                    chartInstances.set(container.id, chart);
+                }
+            }
+
+            document.querySelectorAll('#finalScoresChartContainer, #negativeImpactChartContainer').forEach(container => {
+                chartObserver.observe(container);
             });
         });
-    });
-</script>
+    </script>
+</div>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize table zoom functionality
@@ -1534,106 +1760,5 @@ function isElementInViewport(el) {
         // Initialize scroll indicators
         initializeScrollIndicators();
     });
-    
-    function initializeTableZoom() {
-        // Get all zoom buttons
-        const zoomInButtons = document.querySelectorAll('.zoom-in');
-        const zoomOutButtons = document.querySelectorAll('.zoom-out');
-        
-        // Set initial zoom levels
-        const zoomLevels = {
-            'responsesTable': 100,
-            'medCenterTable': 100,
-            'totalScoresTable': 100
-        };
-        
-        // Set initial zoom class
-        document.querySelectorAll('.responses-table').forEach(table => {
-            table.classList.add('zoom-100');
-        });
-        
-        // Add event listeners for zoom in buttons
-        zoomInButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const tableId = this.getAttribute('data-table');
-                const tableContainer = document.getElementById(tableId + '-container');
-                const zoomLevelDisplay = document.getElementById(tableId + '-zoom');
-                
-                // Increase zoom level (max 150%)
-                if (zoomLevels[tableId] < 150) {
-                    // Remove current zoom class
-                    tableContainer.classList.remove(`zoom-${zoomLevels[tableId]}`);
-                    
-                    // Increase zoom level
-                    zoomLevels[tableId] += 15;
-                    if (zoomLevels[tableId] > 150) zoomLevels[tableId] = 150;
-                    
-                    // Update zoom
-                    updateTableZoom(tableContainer, zoomLevelDisplay, zoomLevels[tableId]);
-                }
-            });
-        });
-        
-        // Add event listeners for zoom out buttons
-        zoomOutButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const tableId = this.getAttribute('data-table');
-                const tableContainer = document.getElementById(tableId + '-container');
-                const zoomLevelDisplay = document.getElementById(tableId + '-zoom');
-                
-                // Decrease zoom level (min 70%)
-                if (zoomLevels[tableId] > 75) {
-                    // Remove current zoom class
-                    tableContainer.classList.remove(`zoom-${zoomLevels[tableId]}`);
-                    
-                    // Decrease zoom level
-                    zoomLevels[tableId] -= 15;
-                    if (zoomLevels[tableId] < 75) zoomLevels[tableId] = 75;
-                    
-                    // Update zoom
-                    updateTableZoom(tableContainer, zoomLevelDisplay, zoomLevels[tableId]);
-                }
-            });
-        });
-    }
-    
-    function updateTableZoom(tableContainer, zoomLevelDisplay, zoomLevel) {
-        // Update the zoom class
-        tableContainer.classList.add(`zoom-${zoomLevel}`);
-        
-        // Update the zoom level display
-        zoomLevelDisplay.textContent = zoomLevel + '%';
-    }
-    
-    function initializeScrollIndicators() {
-        const tableContainers = document.querySelectorAll('.responses-table');
-        
-        tableContainers.forEach(container => {
-            const indicator = container.querySelector('.table-scroll-indicator');
-            
-            // Check if horizontal scrolling is needed
-            function checkScroll() {
-                if (container.scrollWidth > container.clientWidth) {
-                    indicator.style.opacity = '1';
-                    
-                    // Hide indicator after 3 seconds
-                    setTimeout(() => {
-                        indicator.style.opacity = '0';
-                    }, 3000);
-                } else {
-                    indicator.style.opacity = '0';
-                }
-            }
-            
-            // Check on load and resize
-            checkScroll();
-            window.addEventListener('resize', checkScroll);
-            
-            // Hide indicator when scrolling
-            container.addEventListener('scroll', () => {
-                indicator.style.opacity = '0';
-        });
-    });
-    }
 </script>
 {% endblock %}

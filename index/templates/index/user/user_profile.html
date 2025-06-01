@@ -17,7 +17,7 @@
         <!-- Карточка профиля -->
         <div class="profile-card">
             <div class="profile-image-container">
-                {% with profile_image=user.image_info.first %}
+                {% with profile_image=user.images.first %}
                     {% if profile_image and profile_image.image %}
                         <img id="profileImage" src="{{ profile_image.image.url }}" alt="Фото профиля">
                     {% else %}
@@ -68,7 +68,7 @@
                         <i class="bi bi-hospital"></i>
                         <div>
                             <span class="info-label">Медцентр:</span>
-                            <span class="info-value">{% if user.med_info and user.med_info.med_center %}{{ user.med_info.med_center }}{% else %}Не указано{% endif %}</span>
+                            <span class="info-value">{% if user.med_center %}{{ user.med_center }}{% else %}Не указано{% endif %}</span>
                         </div>
                     </div>
                     
@@ -99,10 +99,10 @@
                     </div>
                 </div>
                 
-                {% if request.user.desc_info %}
+                {% if request.user.description %}
                 <div class="profile-about">
                     <h3><i class="bi bi-file-text"></i> О себе</h3>
-                    <p>{{ request.user.desc_info.desc }}</p>
+                    <p>{{ request.user.description }}</p>
                 </div>
                 {% endif %}
             </div>
@@ -194,10 +194,10 @@
                         <div class="photo-editor">
                             <div class="photo-preview-section">
                                 <div class="profile-image-preview">
-                                    <img id="imagePreview" src="{% with profile_image=user.image_info.first %}{% if profile_image and profile_image.image %}{{ profile_image.image.url }}{% else %}{% static 'Icon\user.jpg' %}{% endif %}{% endwith %}" alt="Предпросмотр">
+                                    <img id="imagePreview" src="{% with profile_image=user.images.first %}{% if profile_image and profile_image.image %}{{ profile_image.image.url }}{% else %}{% static 'Icon\user.jpg' %}{% endif %}{% endwith %}" alt="Предпросмотр">
                                 </div>
                                 {% if user.is_authenticated %}
-                                    {% with profile_image=user.image_info.first %}
+                                    {% with profile_image=user.images.first %}
                                         {% if profile_image %}
                                             <button type="button" onclick="document.getElementById('delete-photo-form').submit();" class="photo-delete-btn">
                                                 <i class="bi bi-trash"></i>
@@ -217,7 +217,7 @@
                                     <button class="primary-button" type="submit"><i class="bi bi-check-lg"></i> Сохранить</button>
                                 </form>
                                 {% if user.is_authenticated %}
-                                    {% with profile_image=user.image_info.first %}
+                                    {% with profile_image=user.images.first %}
                                         {% if profile_image %}
                                             <form id="delete-photo-form" method="post" action="{% url 'delete_profile_image' %}" style="display: none;">
                                                 {% csrf_token %}
@@ -238,7 +238,7 @@
                             <h3><i class="bi bi-file-earmark-text"></i> О себе</h3>
                             <div class="about-textarea-container">
                                 <div class="about-textarea-wrapper">
-                                    <textarea name="desc" id="desc" rows="6" class="about-textarea">{{ request.user.desc_info.desc }}</textarea>
+                                    <textarea name="desc" id="desc" rows="6" class="about-textarea">{{ request.user.description }}</textarea>
                                     <div class="about-textarea-decoration"></div>
                                 </div>
                                 <div class="about-textarea-info">

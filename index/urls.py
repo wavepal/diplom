@@ -5,6 +5,7 @@ from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
 from .views.med_center_group_views import add_med_center_group, edit_med_center_group, group_medical_centers
 from .views import response_views
+from .views.auth_views import get_med_centers
 
 urlpatterns = [
     # Основные страницы
@@ -13,6 +14,7 @@ urlpatterns = [
     path('login', views.login_view, name="login"),
     path('logout', views.logout_view, name="logout"),
     path('register', views.register, name="register"),
+    path('get_med_centers', get_med_centers, name='get_med_centers'),
 
     # Управление пользователями
     path('user-list/', views.user_list, name='user_list'),
@@ -64,11 +66,11 @@ urlpatterns = [
     path('check_question_has_answers/<int:question_id>/', views.check_question_has_answers, name='check_question_has_answers'),
 
     # Оценки и ответы
-    path('form/<str:code>/score', views.score, name="score"),
-    path('form/<str:code>/edit_score', views.edit_score, name="edit_score"),
-    path('form/<str:code>/answer_key', views.answer_key, name="answer_key"),
-    path('form/<str:code>/feedback', views.feedback, name="feedback"),
-    path('update-score/', views.update_score, name='update_score'),
+    # path('form/<str:code>/score', views.score, name="score"),
+    # path('form/<str:code>/edit_score', views.edit_score, name="edit_score"),
+    # path('form/<str:code>/answer_key', views.answer_key, name="answer_key"),
+    # path('form/<str:code>/feedback', views.feedback, name="feedback"),
+    # path('update-score/', views.update_score, name='update_score'),
 
     # Просмотр и настройка форм
     path('form/<str:code>/viewform', views.view_form, name="view_form"),
@@ -86,16 +88,15 @@ urlpatterns = [
 
     # Экспорт данных
     path('form/<str:code>/export_csv', views.exportcsv,name='export_csv'),
-    path('responses/<str:code>/export/', views.export_responses_to_excel, name='export_responses_to_excel'),
-    path('responses/<str:code>/export_combined_excel/', views.export_combined_excel, name='export_combined_excel'),
-    path('form/<str:code>/export_final_scores', views.export_final_scores, name='export_final_scores'),
+    path('form/<str:code>/responses/export_excel/', response_views.export_responses_to_excel, name='export_responses_to_excel'),
+    path('form/<str:code>/responses/export_combined/', response_views.export_combined_excel, name='export_combined_excel'),
+    path('form/<str:code>/responses/export_final_scores/', response_views.export_final_scores, name='export_final_scores'),
 
     # Управление медицинскими центрами
     path('manage-medical-centers/', views.manage_medical_centers, name='manage_medical_centers'),
     path('add-medical-center/', views.add_medical_center, name='add_medical_center'),
     path('edit-medical-center/<int:center_id>/', views.edit_medical_center, name='edit_medical_center'),
     path('update-med-center/<int:user_id>/', views.update_med_center, name='update_med_center'),
-    path('get_med_centers', views.get_med_centers, name='get_med_centers'),
 
     # Группы медицинских центров
     path('add-med-center-group/', add_med_center_group, name='add_med_center_group'),
