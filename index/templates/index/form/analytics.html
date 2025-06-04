@@ -539,16 +539,34 @@ function updateExportForm() {
         }
     });
 
+    // Получаем настройки сортировки из таблицы
+    const sortColumn = document.querySelector('.sort-active')?.dataset?.column || '';
+    const sortDirection = document.querySelector('.sort-active')?.classList.contains('sort-desc') ? 'desc' : 'asc';
+
+    // Получаем настройки отображения процентов
     const rangeSliderPercentageCheckbox = document.querySelector('.range-slider-percentage');
     const totalScorePercentageCheckbox = document.querySelector('.total-score-percentage');
 
     const export_as_percentage = rangeSliderPercentageCheckbox ? rangeSliderPercentageCheckbox.checked : false;
     const export_total_as_percentage = totalScorePercentageCheckbox ? totalScorePercentageCheckbox.checked : false;
 
-    // Добавляем параметры в URL
+    // Добавляем все параметры в URL
     formParams.set('export_hidden_columns', hidden_columns.join(','));
     formParams.set('export_as_percentage', export_as_percentage);
     formParams.set('export_total_as_percentage', export_total_as_percentage);
+    formParams.set('sort_column', sortColumn);
+    formParams.set('sort_direction', sortDirection);
+    
+    // Добавляем выбранные фильтры ответов
+    document.querySelectorAll('.question-filter').forEach(filter => {
+        const questionId = filter.dataset.questionId;
+        const selectedOptions = Array.from(filter.selectedOptions).map(option => option.value);
+        if (selectedOptions.length > 0) {
+            selectedOptions.forEach(value => {
+                formParams.append(`question-${questionId}`, value);
+            });
+        }
+    });
     
     // Создаем URL для экспорта
     const formCode = window.location.pathname.split('/')[2];
@@ -1185,16 +1203,34 @@ function exportFinalScores() {
                         }
                     });
             
+                    // Получаем настройки сортировки из таблицы
+                    const sortColumn = document.querySelector('.sort-active')?.dataset?.column || '';
+                    const sortDirection = document.querySelector('.sort-active')?.classList.contains('sort-desc') ? 'desc' : 'asc';
+            
+                    // Получаем настройки отображения процентов
                     const rangeSliderPercentageCheckbox = document.querySelector('.range-slider-percentage');
                     const totalScorePercentageCheckbox = document.querySelector('.total-score-percentage');
             
                     const export_as_percentage = rangeSliderPercentageCheckbox ? rangeSliderPercentageCheckbox.checked : false;
                     const export_total_as_percentage = totalScorePercentageCheckbox ? totalScorePercentageCheckbox.checked : false;
             
-                    // Добавляем параметры в URL
+                    // Добавляем все параметры в URL
                     formParams.set('export_hidden_columns', hidden_columns.join(','));
                     formParams.set('export_as_percentage', export_as_percentage);
                     formParams.set('export_total_as_percentage', export_total_as_percentage);
+                    formParams.set('sort_column', sortColumn);
+                    formParams.set('sort_direction', sortDirection);
+                    
+                    // Добавляем выбранные фильтры ответов
+                    document.querySelectorAll('.question-filter').forEach(filter => {
+                        const questionId = filter.dataset.questionId;
+                        const selectedOptions = Array.from(filter.selectedOptions).map(option => option.value);
+                        if (selectedOptions.length > 0) {
+                            selectedOptions.forEach(value => {
+                                formParams.append(`question-${questionId}`, value);
+                            });
+                        }
+                    });
                     
                     // Создаем URL для экспорта
                     const formCode = window.location.pathname.split('/')[2];
@@ -1499,7 +1535,7 @@ function exportFinalScores() {
                 <div class="answers" data-id="{{ question.id }}">
                     <input type="range" min="0" max="100" value="50" class="slider" disabled>
                     <label for="input-max-value">
-                        <input type="number" id="input-max-value" value="{{ r.question.max_value }}" class="edit-choice" data-id="{{ r.question.id }}" placeholder="{{ r.question.max_value }}" {% if not request.user.is_superuser %}disabled{% endif %}>
+                        <input type="number" id="input-max-value" value="{{ r.question.max_value }}" class="edit-choice" data-id="{{ r.question.id }}" placeholder="{{ r.question.max_value }}" disabled>
                     </label>
                 </div>
                 {% with data=range_slider_data|get_item:r.question.id %}

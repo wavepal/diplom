@@ -573,8 +573,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     removeOption()
     const addOption = () => {
-        document.querySelectorAll(".add-option").forEach(question =>{
-            question.addEventListener("click", function(){
+        document.querySelectorAll(".add-option").forEach(question => {
+            // Удаляем существующие обработчики перед добавлением нового
+            const clonedQuestion = question.cloneNode(true);
+            question.parentNode.replaceChild(clonedQuestion, question);
+            
+            clonedQuestion.addEventListener("click", function(){
                 fetch('add_choice', {
                     method: "POST",
                     headers: {'X-CSRFToken': csrf},

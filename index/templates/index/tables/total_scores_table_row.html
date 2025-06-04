@@ -4,6 +4,7 @@
 {% load count %}
 {% load calculate_penalty %}
 {% load divide %}
+{% if med_center and med_center != '' %}
 <tr>
     <td>{{ med_center }}</td>
     {% for form in active_forms %}
@@ -41,4 +42,5 @@
             {% endif %}
         {% endwith %}
     </td>
-</tr> 
+</tr>
+{% endif %} 

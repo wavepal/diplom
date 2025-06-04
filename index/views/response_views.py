@@ -464,15 +464,17 @@ def export_responses_to_excel(request, code):
     if not request.user.is_superuser and not request.user.is_staff:
         return HttpResponseRedirect(reverse("403"))
 
-    # Получаем состояния чекбоксов
+    # Получаем состояния чекбоксов и настройки отображения
     export_as_percentage = request.GET.get('export_as_percentage') == 'true'
     export_total_as_percentage = request.GET.get('export_total_as_percentage') == 'true'
-    hidden_columns = request.GET.get('hidden_columns', '').split(',')
+    hidden_columns = request.GET.get('export_hidden_columns', '').split(',')
+    sort_column = request.GET.get('sort_column')
+    sort_direction = request.GET.get('sort_direction', 'asc')
 
-    # Получаем параметры фильтрации из сессии
+    # Получаем параметры фильтрации из сессии и GET-параметров
     filter_params = request.session.get('filter_params', {})
     
-    # Получаем параметры фильтрации из сессии или из GET-параметров
+    # Получаем параметры фильтрации
     selected_city = request.GET.get('cities', filter_params.get('cities'))
     selected_gender = request.GET.get('gender', filter_params.get('gender'))
     age_min = request.GET.get('age_min', filter_params.get('age_min'))
@@ -486,64 +488,83 @@ def export_responses_to_excel(request, code):
     # Базовый запрос
     all_responses = Responses.objects.filter(response_to=formInfo)
     
-    # Применяем фильтры
+    # Применяем фильтры с использованием Q objects для оптимизации
+    filters = Q()
     if selected_city:
-        all_responses = all_responses.filter(responder_city=selected_city)
-    
+        filters &= Q(responder_city=selected_city)
     if selected_gender:
-        all_responses = all_responses.filter(responder_gender=selected_gender)
-    
+        filters &= Q(responder_gender=selected_gender)
     if age_min and age_min.strip():
         try:
-            all_responses = all_responses.filter(responder_age__gte=int(age_min))
+            filters &= Q(responder_age__gte=int(age_min))
         except (ValueError, TypeError):
             pass
-    
     if age_max and age_max.strip():
         try:
-            all_responses = all_responses.filter(responder_age__lte=int(age_max))
+            filters &= Q(responder_age__lte=int(age_max))
         except (ValueError, TypeError):
             pass
-
-    # Фильтрация по группе медцентров
     if selected_med_group:
         med_centers = RegionMedCenter.objects.filter(group_id=selected_med_group).values_list('med_center', flat=True)
-        all_responses = all_responses.filter(responder_med__in=med_centers)
-
-    # Фильтрация по региону медцентра
+        filters &= Q(responder_med__in=med_centers)
     if selected_med_region:
         med_centers = RegionMedCenter.objects.filter(region=selected_med_region).values_list('med_center', flat=True)
-        all_responses = all_responses.filter(responder_med__in=med_centers)
-
-    # Фильтрация по конкретному медцентру
+        filters &= Q(responder_med__in=med_centers)
     if selected_med_center and selected_med_center.strip():
-        # Ensure exact match for med_center
-        all_responses = all_responses.filter(responder_med__exact=selected_med_center)
-
-    # Фильтрация по датам
+        filters &= Q(responder_med__exact=selected_med_center)
     if date_from and date_from.strip():
         try:
             date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
-            all_responses = all_responses.filter(createdAt__gte=date_from_obj)
+            filters &= Q(createdAt__gte=date_from_obj)
         except (ValueError, TypeError):
             pass
-    
     if date_to and date_to.strip():
         try:
             date_to_obj = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
-            all_responses = all_responses.filter(createdAt__lt=date_to_obj)
+            filters &= Q(createdAt__lt=date_to_obj)
         except (ValueError, TypeError):
             pass
 
     # Применяем фильтры по выбранным вариантам ответов
-    for question_id, selected_choices in filter_params.get('choices', {}).items():
-        answers = Answer.objects.filter(
-            response__in=all_responses,
-            answer_to_id=question_id,
-            answer__in=selected_choices
-        )
-        response_ids = answers.values_list('response_id', flat=True)
-        all_responses = all_responses.filter(id__in=response_ids)
+    for key, value in request.GET.items():
+        if key.startswith('question-') and value:
+            question_id = key.replace('question-', '')
+            try:
+                question = Questions.objects.get(id=question_id)
+                if question.question_type in ["multiple choice", "checkbox"]:
+                    choice_ids = request.GET.getlist(key)
+                    if choice_ids:
+                        answers = Answer.objects.filter(
+                            answer_to=question,
+                            answer__in=choice_ids
+                        )
+                        response_ids = answers.values_list('response_id', flat=True)
+                        filters &= Q(id__in=response_ids)
+            except Questions.DoesNotExist:
+                pass
+
+    all_responses = all_responses.filter(filters)
+
+    # Применяем сортировку
+    if sort_column:
+        if sort_column == 'user':
+            sort_field = 'responder_username'
+        elif sort_column == 'age':
+            sort_field = 'responder_age'
+        elif sort_column == 'gender':
+            sort_field = 'responder_gender'
+        elif sort_column == 'city':
+            sort_field = 'responder_city'
+        elif sort_column == 'med':
+            sort_field = 'responder_med'
+        elif sort_column == 'created-at':
+            sort_field = 'createdAt'
+        else:
+            sort_field = 'createdAt'
+
+        if sort_direction == 'desc':
+            sort_field = f'-{sort_field}'
+        all_responses = all_responses.order_by(sort_field)
 
     response_answers = {}
     for response in all_responses:
@@ -590,15 +611,25 @@ def export_responses_to_excel(request, code):
     ws = wb.active
     ws.title = "Responses"
 
-    headers = ["User", "Age", "Gender", "City", "Medical Center", "Submission Date"]
-    question_headers = {question.question: question.id for question in formInfo.questions.exclude(question_type="title")}
+    # Определяем заголовки с учетом скрытых столбцов
+    base_headers = {
+        "user": "User",
+        "age": "Age",
+        "gender": "Gender",
+        "city": "City",
+        "med": "Medical Center",
+        "created-at": "Submission Date"
+    }
 
-    headers = [header for header in headers if header.lower() not in hidden_columns]
+    headers = []
+    for key, header in base_headers.items():
+        if key not in hidden_columns:
+            headers.append(header)
+
+    question_headers = {question.question: question.id for question in formInfo.questions.exclude(question_type="title")}
     for question, question_id in question_headers.items():
         if f"question-{question_id}" not in hidden_columns:
             headers.append(question)
-    # if "total-score" not in hidden_columns and formInfo.is_quiz:
-    #     headers.append("Total Score (Percentage)" if export_total_as_percentage else "Total Score")
 
     # Стили для заголовков
     header_font = Font(bold=True)
@@ -609,36 +640,37 @@ def export_responses_to_excel(request, code):
         cell = ws.cell(row=1, column=col_num, value=header)
         cell.font = header_font
         cell.fill = header_fill
-        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
+    # Записываем данные
     for row_num, response in enumerate(all_responses, 2):
-        row = []
-        responder = response.responder
-        row_data = {
-            "User": response.responder_username if response.responder else "Anonymous",
-            "Age": response.responder_age if response.responder_age else "N/A",
-            "Gender": response.responder_gender if response.responder_gender else "N/A",
-            "City": response.responder_city if response.responder_city else "N/A",
-            "Medical Center": response.responder_med if response.responder_med else "N/A",
-            "Submission Date": response.createdAt.strftime("%d.%m.%Y %H:%M")
-        }
+        col = 1
+        if "user" not in hidden_columns:
+            ws.cell(row=row_num, column=col, value=response.responder_username if response.responder_username else "Anonymous")
+            col += 1
+        if "age" not in hidden_columns:
+            ws.cell(row=row_num, column=col, value=response.responder_age if response.responder_age else "N/A")
+            col += 1
+        if "gender" not in hidden_columns:
+            ws.cell(row=row_num, column=col, value=response.responder_gender if response.responder_gender else "N/A")
+            col += 1
+        if "city" not in hidden_columns:
+            ws.cell(row=row_num, column=col, value=response.responder_city if response.responder_city else "N/A")
+            col += 1
+        if "med" not in hidden_columns:
+            ws.cell(row=row_num, column=col, value=response.responder_med if response.responder_med else "N/A")
+            col += 1
+        if "created-at" not in hidden_columns:
+            ws.cell(row=row_num, column=col, value=response.createdAt.strftime("%d.%m.%Y %H:%M"))
+            col += 1
 
         for question, question_id in question_headers.items():
             if f"question-{question_id}" not in hidden_columns:
                 answer = response_answers[response.id].get(question_id, "N/A")
-                row_data[question] = answer
-
-        # if "total-score" not in hidden_columns and formInfo.is_quiz:
-        #     total_score = calculate_score(response, formInfo)
-        #     if export_total_as_percentage:
-        #         total_percentage = (total_score / calculate_total_score(formInfo)) * 100
-        #         row_data["Total Score (Percentage)"] = f"{total_percentage:.2f}%"
-        #     else:
-        #         row_data["Total Score"] = total_score
-
-        row = [row_data[col] for col in headers]
-        for col_num, value in enumerate(row, 1):
-            ws.cell(row=row_num, column=col_num, value=value)
+                if isinstance(answer, list):  # For checkbox type questions
+                    answer = ", ".join(answer)
+                ws.cell(row=row_num, column=col, value=answer)
+                col += 1
 
     # Автоматическая настройка ширины столбцов
     for column in ws.columns:
@@ -650,15 +682,23 @@ def export_responses_to_excel(request, code):
                     max_length = len(cell.value)
             except:
                 pass
-        adjusted_width = (max_length + 2)
+        adjusted_width = min(max_length + 2, 50)  # Ограничиваем максимальную ширину
         ws.column_dimensions[column_letter].width = adjusted_width
+
+    # Применяем форматирование к ячейкам с данными
+    for row in ws.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = Alignment(vertical='center', wrap_text=True)
 
     output = BytesIO()
     wb.save(output)
     output.seek(0)
 
-    response = HttpResponse(output, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename="responses.xlsx"'
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename=responses_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     return response
 
 import openpyxl
